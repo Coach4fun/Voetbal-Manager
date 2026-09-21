@@ -1,0 +1,28 @@
+{
+  "name": "VoetbalTeam Manager",
+  "short_name": "VT Manager",
+  "description": "Beheer je team, opstellingen en speelminuten langs de lijn.",
+  "id": "/",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b3d24",
+  "theme_color": "#0b3d24",
+  "lang": "nl",
+  "categories": ["sports", "utilities"],
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

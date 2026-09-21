@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <title>VoetbalTeam Manager</title>
+  <meta name="description" content="Beheer je team, opstellingen en speelminuten langs de lijn.">
+  <meta name="theme-color" content="#0b3d24">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="VT Manager">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Topbar -->
+  <header class="app-topbar">
+    <span class="app-topbar__logo" aria-hidden="true">⚽</span>
+    <h1 class="app-topbar__title">VoetbalTeam Manager</h1>
+    <button class="app-topbar__action" id="btn-notifications" aria-label="Meldingen">🔔</button>
+  </header>
+
+  <!-- Main content: 5 views -->
+  <main id="main-content" class="app-main">
+
+    <!-- View 1: Dashboard -->
+    <section id="view-dashboard" class="view view--active" data-view="dashboard">
+      <h2 class="view__title">Dashboard</h2>
+
+      <div class="field-row">
+        <label class="field-label" for="dashboard-team-select">Team</label>
+        <select class="field-select" id="dashboard-team-select"></select>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="stat-card__value" id="stat-players">0</span>
+          <span class="stat-card__label">Spelers</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card__value" id="stat-guests">0</span>
+          <span class="stat-card__label">Gastspelers</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card__value" id="stat-total-minutes">0'</span>
+          <span class="stat-card__label">Totale minuten</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card__value" id="stat-avg-minutes">0'</span>
+          <span class="stat-card__label">Gem. per speler</span>
+        </div>
+      </div>
+
+      <div class="list-header">
+        <h3 class="section-heading">Speelminuten per speler</h3>
+        <select class="field-select field-select--compact" id="dashboard-sort-select">
+          <option value="minutes-desc">Minuten (hoog-laag)</option>
+          <option value="minutes-asc">Minuten (laag-hoog)</option>
+          <option value="alpha">Alfabetisch</option>
+        </select>
+      </div>
+      <p class="hint-text" id="dashboard-empty-hint" hidden>Nog geen spelers in dit team.</p>
+      <ul class="player-minutes-list" id="player-minutes-list"></ul>
+
+      <h3 class="section-heading">Aankomende wedstrijd</h3>
+      <div class="upcoming-card">
+        <div class="upcoming-card__teams" id="upcoming-teams">–</div>
+        <div class="upcoming-card__meta" id="upcoming-meta">Geen wedstrijd ingepland</div>
+      </div>
+    </section>
+
+    <!-- View 2: Teambeheer -->
+    <section id="view-teambeheer" class="view" data-view="teambeheer">
+      <h2 class="view__title">Teambeheer</h2>
+
+      <div class="team-toolbar">
+        <select class="field-select team-toolbar__select" id="select-team" aria-label="Actief team"></select>
+
+        <details class="team-popover" id="team-details-card">
+          <summary class="btn btn--secondary btn--icon-compact team-popover__trigger" title="Teamgegevens" aria-label="Teamgegevens">⚙️</summary>
+          <div class="team-popover__panel">
+            <form id="team-form">
+              <div class="field-row field-row--split field-row--compact">
+                <div>
+                  <label class="field-label" for="team-name">Teamnaam</label>
+                  <input class="field-input field-input--compact" type="text" id="team-name" placeholder="Bijv. JO13-1" required>
+                </div>
+                <div>
+                  <label class="field-label" for="team-season">Seizoen</label>
+                  <input class="field-input field-input--compact" type="text" id="team-season" placeholder="Bijv. 2025 / 2026" required>
+                </div>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn--primary btn--compact" type="submit">
+                  <span aria-hidden="true">💾</span> Opslaan
+                </button>
+                <button class="btn btn--danger btn--compact" type="button" id="btn-delete-team">
+                  <span aria-hidden="true">🗑️</span> Verwijderen
+                </button>
+              </div>
+            </form>
+          </div>
+        </details>
+
+        <button class="btn btn--secondary btn--icon-compact" id="btn-add-team" title="Nieuw team aanmaken" aria-label="Nieuw team aanmaken">➕</button>
+      </div>
+
+      <h3 class="section-heading">Speler toevoegen</h3>
+      <form class="card card--compact" id="player-form">
+        <div class="player-form-row">
+          <div class="player-form-field player-form-field--grow">
+            <label class="field-label" for="player-name">Naam</label>
+            <input class="field-input field-input--compact" type="text" id="player-name" placeholder="Voor- en achternaam" required>
+          </div>
+          <div class="player-form-field">
+            <span class="field-label">Positie</span>
+            <div class="chip-group chip-group--compact" id="player-positions">
+              <label class="chip chip--compact" title="Keeper">
+                <input class="chip__input" type="checkbox" value="Keeper" aria-label="Keeper">
+                <span>K</span>
+              </label>
+              <label class="chip chip--compact" title="Verdediger">
+                <input class="chip__input" type="checkbox" value="Verdediger" aria-label="Verdediger">
+                <span>V</span>
+              </label>
+              <label class="chip chip--compact" title="Middenvelder">
+                <input class="chip__input" type="checkbox" value="Middenvelder" aria-label="Middenvelder">
+                <span>M</span>
+              </label>
+              <label class="chip chip--compact" title="Aanvaller">
+                <input class="chip__input" type="checkbox" value="Aanvaller" aria-label="Aanvaller">
+                <span>A</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="player-form-row">
+          <div class="player-form-field">
+            <label class="field-label" for="player-status">Status</label>
+            <select class="field-select field-select--sm" id="player-status">
+              <option value="fit">Fit</option>
+              <option value="geblesseerd">Geblesseerd</option>
+              <option value="afwezig">Afwezig</option>
+            </select>
+          </div>
+
+          <label class="checkbox-row checkbox-row--inline" for="player-guest">
+            <input type="checkbox" id="player-guest">
+            <span>Gast</span>
+          </label>
+
+          <div class="btn-row player-form-row__actions">
+            <button class="btn btn--primary btn--compact" type="submit" id="btn-player-submit">
+              <span aria-hidden="true">👤</span> Speler toevoegen
+            </button>
+            <button class="btn btn--secondary btn--compact" type="button" id="btn-player-cancel" hidden>
+              Annuleren
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <h3 class="section-heading">Spelerslijst</h3>
+      <ul class="player-list player-list--scroll" id="player-list"></ul>
+      <p class="empty-state" id="player-list-empty" hidden>Nog geen spelers toegevoegd aan dit team.</p>
+    </section>
+
+    <!-- View 3: Wedstrijd & Opstelling -->
+    <section id="view-wedstrijd" class="view" data-view="wedstrijd">
+      <div class="view-title-row">
+        <h2 class="view__title">Wedstrijd &amp; Opstelling</h2>
+        <p class="hint-text hint-text--inline">Voeg een nieuw wisselmoment toe vanaf een bepaalde minuut. De opstelling van het vorige blok is dan het vertrekpunt.</p>
+      </div>
+
+      <div class="lineup-picker" id="match-select-row">
+        <select class="field-select lineup-picker__select" id="match-select" aria-label="Kies wedstrijd"></select>
+        <button type="button" class="btn btn--compact btn--secondary" id="btn-add-match" title="Nieuwe wedstrijd toevoegen">➕ Nieuw</button>
+        <button type="button" class="btn btn--icon-xs btn--secondary" id="btn-delete-match" title="Wedstrijd verwijderen" aria-label="Wedstrijd verwijderen">🗑️</button>
+      </div>
+
+      <details class="match-summary" id="match-summary">
+        <summary class="match-summary__trigger">
+          <span class="match-summary__line" id="match-summary-line">Wedstrijdgegevens invullen…</span>
+          <span class="match-summary__edit-icon" aria-hidden="true">✏️</span>
+        </summary>
+        <div class="match-summary__panel">
+          <form class="card card--compact" id="match-form">
+            <div class="field-row">
+              <label class="field-label" for="opponent">Tegenstander</label>
+              <input class="field-input" type="text" id="opponent" placeholder="Bijv. SV Vooruit">
+            </div>
+            <div class="field-row field-row--split">
+              <div>
+                <label class="field-label" for="match-date">Datum</label>
+                <input class="field-input" type="date" id="match-date">
+              </div>
+              <div>
+                <label class="field-label" for="match-time">Tijd</label>
+                <input class="field-input" type="time" id="match-time">
+              </div>
+            </div>
+            <div class="field-row field-row--split">
+              <div>
+                <label class="field-label" for="match-duration">Speelduur (min)</label>
+                <input class="field-input" type="number" id="match-duration" min="10" max="120" step="5" value="70">
+              </div>
+              <div>
+                <label class="field-label" for="match-type">Type</label>
+                <select class="field-select" id="match-type">
+                  <option value="competitie">Competitie</option>
+                  <option value="beker">Beker</option>
+                  <option value="vriendschappelijk">Vriendschappelijk</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row">
+              <span class="field-label">Thuis / Uit</span>
+              <div class="toggle-group" id="match-home-away">
+                <button type="button" class="toggle-btn toggle-btn--active" data-value="thuis">🏠 Thuis</button>
+                <button type="button" class="toggle-btn" data-value="uit">🚗 Uit</button>
+              </div>
+            </div>
+          </form>
+
+          <h3 class="section-heading">Afwezige spelers</h3>
+          <p class="hint-text">Vink spelers aan die niet beschikbaar zijn voor deze wedstrijd. Zij verschijnen niet op de wisselbank.</p>
+          <ul class="absence-list" id="absence-list"></ul>
+        </div>
+      </details>
+
+      <div class="block-row">
+        <div class="block-tabs" id="block-tabs"></div>
+        <div class="add-block-row">
+          <input class="field-input add-block-row__input" type="number" id="new-block-minute" min="1" max="120" placeholder="Min.">
+          <button class="btn btn--secondary btn--icon-xs add-block-row__btn" type="button" id="btn-add-block" title="Wisselmoment toevoegen" aria-label="Wisselmoment toevoegen">
+            ➕
+          </button>
+        </div>
+      </div>
+      <p class="block-active-label" id="block-active-label"></p>
+
+      <p class="hint-text" id="block-color-hint">🔴 Nieuw vanaf de bank &nbsp;·&nbsp; 🟠 Verplaatst &nbsp;·&nbsp; Sleep spelers tussen veld en bank</p>
+      <div class="pitch-layout">
+        <div class="pitch pitch--half" id="pitch">
+          <div class="pitch__box pitch__box--top"></div>
+          <div class="pitch__goal pitch__goal--top"></div>
+          <!-- Spelerskaartjes op het veld worden hier dynamisch geplaatst -->
+        </div>
+        <div class="bench-sidebar">
+          <p class="bench-sidebar__label">Bank</p>
+          <div class="bench bench--sidebar" id="bench">
+            <p class="empty-state" id="bench-empty" hidden>Iedereen staat op het veld.</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="save-hint" id="lineup-save-hint" hidden>✓ Wijzigingen opgeslagen</p>
+    </section>
+
+    <!-- View 4: Live Tracker -->
+    <section id="view-live" class="view" data-view="live">
+      <h2 class="view__title">Live Tracker</h2>
+
+      <div class="lineup-picker" id="live-match-select-row">
+        <select class="field-select lineup-picker__select" id="live-match-select" aria-label="Kies wedstrijd om te volgen"></select>
+      </div>
+
+      <div class="alarm-banner" id="alarm-banner" hidden>
+        <div class="alarm-banner__row">
+          <span class="alarm-banner__icon" aria-hidden="true">⏰</span>
+          <span id="alarm-banner-text">Wissel voorbereiden</span>
+        </div>
+        <div class="alarm-banner__actions">
+          <button type="button" class="btn btn--compact btn--primary" id="btn-apply-suggested-sub">✅ Wissel doorvoeren</button>
+          <button type="button" class="btn btn--compact btn--secondary" id="btn-dismiss-suggested-sub">✏️ Zelf regelen</button>
+        </div>
+      </div>
+
+      <div class="timer-row">
+        <div class="timer-card timer-card--compact" id="timer-card">
+          <div class="timer-card__time-block">
+            <span class="timer-card__half" id="timer-half">1e helft</span>
+            <span class="timer-card__time" id="timer-display">00:00</span>
+          </div>
+          <div class="timer-adjust">
+            <button type="button" class="btn btn--chip" id="btn-timer-minus" title="1 minuut terug" aria-label="1 minuut terug">−1'</button>
+            <button type="button" class="btn btn--chip" id="btn-timer-plus" title="1 minuut verder" aria-label="1 minuut verder">+1'</button>
+          </div>
+          <div class="timer-card__controls">
+            <button class="btn btn--icon-round btn--icon-round--sm btn--primary btn--timer-toggle" id="btn-timer-toggle" aria-label="Start">▶️</button>
+            <button class="btn btn--icon-round btn--icon-round--sm btn--secondary" id="btn-timer-reset" aria-label="Reset">⏹️</button>
+          </div>
+        </div>
+        <button class="btn btn--danger btn--icon-compact timer-row__end-btn" id="btn-end-match" title="Wedstrijd beëindigen" aria-label="Wedstrijd beëindigen">🏁</button>
+      </div>
+
+      <h3 class="section-heading">Live Opstelling</h3>
+      <p class="hint-text">Sleep een bankspeler op een veldspeler om te wisselen. Sleep een veldspeler naar de bank voor een man minder.</p>
+      <p class="hint-text" id="live-block-color-hint">🔴 Nieuw vanaf de bank &nbsp;·&nbsp; 🟠 Verplaatst &nbsp;·&nbsp; Sleep spelers tussen veld en bank</p>
+      <div class="lineup-picker">
+        <select class="field-select lineup-picker__select" id="live-lineup-select" aria-label="Kies een gemaakte opstelling"></select>
+        <button type="button" class="btn btn--compact btn--secondary" id="btn-apply-lineup">Overnemen</button>
+      </div>
+      <div class="pitch-layout">
+        <div class="pitch pitch--half" id="live-pitch">
+          <div class="pitch__box pitch__box--top"></div>
+          <div class="pitch__goal pitch__goal--top"></div>
+          <!-- Spelerskaartjes op het veld worden hier dynamisch geplaatst -->
+        </div>
+        <div class="bench-sidebar">
+          <p class="bench-sidebar__label">Bank</p>
+          <div class="bench bench--sidebar" id="live-bench">
+            <p class="empty-state" id="live-bench-empty" hidden>Iedereen staat op het veld.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="section-heading">Wisselregistratie</h3>
+      <p class="hint-text" id="sub-log-empty">Nog geen wissels doorgevoerd tijdens deze wedstrijd.</p>
+      <ul class="sub-log" id="sub-log"></ul>
+    </section>
+
+    <!-- View 5: Data Import/Export -->
+    <section id="view-data" class="view" data-view="data">
+      <h2 class="view__title">Data Import/Export</h2>
+
+      <div class="card">
+        <h3 class="card__title">📤 Exporteren</h3>
+        <p class="card__text">Kies een team en deel óf de wedstrijd met opstelling(en) (JSON), óf een teamoverzicht met alle spelers, speelminuten en basisplekken (JSON of CSV/Excel). De import herkent zelf om welk formaat en type het gaat.</p>
+        <div class="field-row">
+          <label class="field-label" for="export-team-select">Team</label>
+          <select class="field-select" id="export-team-select"></select>
+        </div>
+        <button class="btn btn--primary btn--block" id="btn-export-match">Wedstrijd + opstelling exporteren (JSON)</button>
+        <button class="btn btn--secondary btn--block" id="btn-export-team-overview">Teamoverzicht exporteren (JSON)</button>
+        <button class="btn btn--secondary btn--block" id="btn-export-team-overview-csv">Teamoverzicht exporteren (CSV/Excel)</button>
+      </div>
+
+      <div class="card">
+        <h3 class="card__title">📥 Importeren</h3>
+        <p class="card__text">Importeer een back-up (JSON) of teamoverzicht (JSON of CSV/Excel) van jezelf of een collega-trainer. Je eigen teams, spelers en wedstrijden blijven altijd behouden — er wordt alleen nieuwe of bijgewerkte informatie toegevoegd.</p>
+        <label class="btn btn--secondary btn--block" for="file-import">
+          Kies bestand
+        </label>
+        <input type="file" id="file-import" accept=".json,.txt,.csv" hidden>
+        <span class="card__filename" id="import-filename">Geen bestand geselecteerd</span>
+        <p class="hint-text hint-text--inline">Of plak hieronder de geëxporteerde back-uptekst (JSON of CSV):</p>
+        <textarea class="field-input field-input--textarea" id="import-textarea" rows="4" placeholder="Plak hier de geëxporteerde back-uptekst…"></textarea>
+        <button type="button" class="btn btn--primary btn--block" id="btn-import-data">Importeren</button>
+        <p class="card__filename" id="import-result" hidden></p>
+      </div>
+
+      <div class="card">
+        <h3 class="card__title">☁️ Backup</h3>
+        <p class="card__text">Maak een volledige back-up van je gegevens (teams, spelers en wedstrijden) als JSON-bestand. Deel dit bestand (of de inhoud ervan) met een collega-trainer om te importeren.</p>
+        <button class="btn btn--secondary btn--block" id="btn-backup">Back-up maken</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom navigation -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="nav-item nav-item--active" data-target="dashboard">
+      <span class="nav-item__icon" aria-hidden="true">🏠</span>
+      <span class="nav-item__label">Dashboard</span>
+    </button>
+    <button class="nav-item" data-target="teambeheer">
+      <span class="nav-item__icon" aria-hidden="true">👥</span>
+      <span class="nav-item__label">Team</span>
+    </button>
+    <button class="nav-item" data-target="wedstrijd">
+      <span class="nav-item__icon" aria-hidden="true">🎯</span>
+      <span class="nav-item__label">Opstelling</span>
+    </button>
+    <button class="nav-item" data-target="live">
+      <span class="nav-item__icon" aria-hidden="true">⏱️</span>
+      <span class="nav-item__label">Live</span>
+    </button>
+    <button class="nav-item" data-target="data">
+      <span class="nav-item__icon" aria-hidden="true">📊</span>
+      <span class="nav-item__label">Data</span>
+    </button>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>

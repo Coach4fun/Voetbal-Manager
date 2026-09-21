@@ -1,0 +1,1584 @@
+/* =========================================================
+   VoetbalTeam Manager - stylesheet
+   Sport-thema: donkergroen, wit, gras-accenten
+   Mobile-first, grote hitboxes, native-app gevoel
+   ========================================================= */
+
+:root {
+  --color-dark-green: #0b3d24;
+  --color-green: #0f5c33;
+  --color-grass: #3fae5a;
+  --color-grass-light: #6fd68a;
+  --color-white: #ffffff;
+  --color-off-white: #f4f8f5;
+  --color-gray: #7a8a82;
+  --color-danger: #d9483e;
+  --color-warning: #e08a1e;
+  --color-line: #e1e9e4;
+
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 20px;
+  --radius-round: 999px;
+
+  --shadow-card: 0 2px 10px rgba(11, 61, 36, 0.08);
+  --shadow-elevated: 0 6px 20px rgba(11, 61, 36, 0.18);
+
+  --nav-height: 72px;
+  --topbar-height: 56px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+
+  --tap-min: 48px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--color-off-white);
+  color: var(--color-dark-green);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+button, input, select {
+  font-family: inherit;
+}
+
+/* ---------- Topbar ---------- */
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: calc(var(--topbar-height) + var(--safe-top));
+  padding: var(--safe-top) 16px 0 16px;
+  background: linear-gradient(135deg, var(--color-dark-green), var(--color-green));
+  color: var(--color-white);
+  box-shadow: var(--shadow-elevated);
+}
+
+.app-topbar__logo {
+  font-size: 24px;
+}
+
+.app-topbar__title {
+  flex: 1;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.app-topbar__action {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  border-radius: var(--radius-round);
+  color: var(--color-white);
+  font-size: 18px;
+}
+
+/* ---------- Main / Views ---------- */
+
+.app-main {
+  padding: 16px 16px calc(var(--nav-height) + var(--safe-bottom) + 24px) 16px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.view {
+  display: none;
+  animation: view-fade-in 0.22s ease;
+}
+
+.view--active {
+  display: block;
+}
+
+@keyframes view-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.view__title {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 4px 0 16px 0;
+  color: var(--color-dark-green);
+}
+
+.view-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 4px 0 16px 0;
+}
+
+.view-title-row .view__title {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.section-heading {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--color-gray);
+  margin: 14px 0 6px 0;
+}
+
+.hint-text--inline {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- Stat grid (Dashboard) ---------- */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.stat-card {
+  background: var(--color-white);
+  border-radius: var(--radius-s);
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  box-shadow: var(--shadow-card);
+  border-top: 2px solid var(--color-grass);
+  text-align: center;
+}
+
+.stat-card__value {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--color-dark-green);
+  line-height: 1.1;
+}
+
+.stat-card__label {
+  font-size: 9.5px;
+  color: var(--color-gray);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+/* ---------- Player minutes list ---------- */
+
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 14px 0 6px 0;
+}
+
+.list-header .section-heading {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.field-select.field-select--compact {
+  width: auto;
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: var(--radius-s);
+}
+
+.player-minutes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--color-white);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.player-minutes-item {
+  display: grid;
+  grid-template-columns: 88px 1fr 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-line);
+  font-size: 12.5px;
+}
+
+.player-minutes-item:last-child {
+  border-bottom: none;
+}
+
+.player-minutes-item__name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-minutes-item__bar {
+  height: 6px;
+  background: var(--color-line);
+  border-radius: var(--radius-round);
+  overflow: hidden;
+}
+
+.player-minutes-item__bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-grass), var(--color-grass-light));
+  border-radius: var(--radius-round);
+}
+
+.player-minutes-item__value {
+  text-align: right;
+  font-weight: 700;
+  color: var(--color-green);
+}
+
+/* ---------- Upcoming match card ---------- */
+
+.upcoming-card {
+  background: linear-gradient(135deg, var(--color-dark-green), var(--color-green));
+  color: var(--color-white);
+  border-radius: var(--radius-m);
+  padding: 10px 14px;
+  box-shadow: var(--shadow-card);
+}
+
+.upcoming-card__teams {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.upcoming-card__vs {
+  color: var(--color-grass-light);
+  font-weight: 600;
+  margin: 0 6px;
+}
+
+.upcoming-card__meta {
+  margin-top: 3px;
+  font-size: 11.5px;
+  opacity: 0.85;
+}
+
+/* ---------- Form fields ---------- */
+
+.field-row {
+  margin-bottom: 16px;
+}
+
+.field-row--split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.field-row--compact {
+  margin-bottom: 10px;
+}
+
+/* ---------- Team toolbar (Teambeheer: team, gegevens-popover, + knop) ---------- */
+
+.team-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.field-select.team-toolbar__select {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  font-size: 14px;
+}
+
+.btn--icon-compact {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.team-popover {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.team-popover__trigger {
+  list-style: none;
+}
+
+.team-popover__trigger::-webkit-details-marker {
+  display: none;
+}
+
+.team-popover__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 15;
+  width: 260px;
+  max-width: calc(100vw - 48px);
+  background: var(--color-white);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-elevated);
+  padding: 12px;
+}
+
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-gray);
+  margin-bottom: 6px;
+}
+
+.field-input,
+.field-select {
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0 14px;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--color-line);
+  background: var(--color-white);
+  font-size: 16px;
+  color: var(--color-dark-green);
+}
+
+.field-input.field-input--compact,
+.field-select.field-select--sm {
+  min-height: 38px;
+  padding: 0 10px;
+  font-size: 14px;
+}
+
+.field-input.field-input--textarea {
+  min-height: 90px;
+  padding: 10px 14px;
+  font-family: inherit;
+  resize: vertical;
+  margin-bottom: 10px;
+}
+
+.field-input:focus,
+.field-select:focus {
+  outline: none;
+  border-color: var(--color-grass);
+  box-shadow: 0 0 0 3px rgba(63, 174, 90, 0.2);
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  min-height: 52px;
+  border: none;
+  border-radius: var(--radius-m);
+  font-size: 16px;
+  font-weight: 700;
+  padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn[hidden] {
+  display: none;
+}
+
+.btn--block {
+  display: flex;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.btn--primary {
+  background: var(--color-grass);
+  color: var(--color-white);
+  box-shadow: 0 4px 14px rgba(63, 174, 90, 0.35);
+}
+
+.btn--secondary {
+  background: var(--color-white);
+  color: var(--color-dark-green);
+  border: 2px solid var(--color-line);
+}
+
+.btn--danger {
+  background: var(--color-danger);
+  color: var(--color-white);
+}
+
+.btn--compact {
+  min-height: 42px;
+  font-size: 14px;
+  padding: 0 14px;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-row .btn {
+  flex: 1;
+  margin-top: 0;
+}
+
+.btn--icon-round {
+  min-width: 64px;
+  min-height: 64px;
+  border-radius: var(--radius-round);
+  font-size: 22px;
+  padding: 0;
+}
+
+.btn--chip {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: var(--radius-round);
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--color-white);
+  border: none;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  min-width: 26px;
+  min-height: 26px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  border-radius: var(--radius-round);
+}
+
+.icon-btn:active {
+  background: var(--color-line);
+}
+
+.icon-btn--danger:active {
+  background: rgba(217, 72, 62, 0.15);
+}
+
+/* ---------- Player list (Teambeheer: 2 kolommen naast elkaar) ---------- */
+
+.player-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.player-list--scroll {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.player-list__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--color-white);
+  border-radius: var(--radius-s);
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+}
+
+.player-list__actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.player-list__avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-round);
+  background: var(--color-dark-green);
+  color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 9.5px;
+  flex-shrink: 0;
+}
+
+.player-list__info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.player-list__name {
+  font-weight: 700;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-list__subrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.player-list__meta {
+  font-size: 10px;
+  color: var(--color-gray);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+}
+
+.player-list__badges {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+/* ---------- Badges (speler-status) ---------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--radius-round);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.badge--fit {
+  background: rgba(63, 174, 90, 0.15);
+  color: var(--color-green);
+}
+
+.badge--geblesseerd {
+  background: rgba(217, 72, 62, 0.15);
+  color: var(--color-danger);
+}
+
+.badge--afwezig {
+  background: rgba(122, 138, 130, 0.18);
+  color: var(--color-gray);
+}
+
+.badge--guest {
+  background: transparent;
+  border: 1px solid var(--color-dark-green);
+  color: var(--color-dark-green);
+}
+
+/* ---------- Chip group (voorkeurspositie(s)) ---------- */
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-round);
+  border: 2px solid var(--color-line);
+  background: var(--color-white);
+  color: var(--color-dark-green);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.chip__input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.chip--checked {
+  background: var(--color-grass);
+  border-color: var(--color-grass);
+  color: var(--color-white);
+}
+
+.chip--compact {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ---------- Checkbox row (bv. Gastspeler) ---------- */
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-dark-green);
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.checkbox-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-grass);
+}
+
+/* ---------- Empty state ---------- */
+
+.empty-state {
+  text-align: center;
+  color: var(--color-gray);
+  font-size: 14px;
+  padding: 20px 10px;
+}
+
+/* ---------- Toggle group (bv. Thuis/Uit) ---------- */
+
+.toggle-group {
+  display: flex;
+  gap: 8px;
+}
+
+.toggle-btn {
+  flex: 1;
+  min-height: var(--tap-min);
+  border-radius: var(--radius-m);
+  border: 2px solid var(--color-line);
+  background: var(--color-white);
+  color: var(--color-dark-green);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toggle-btn--active {
+  background: var(--color-grass);
+  border-color: var(--color-grass);
+  color: var(--color-white);
+}
+
+/* ---------- Hint text ---------- */
+
+.hint-text {
+  font-size: 12px;
+  color: var(--color-gray);
+  margin: -6px 0 12px 0;
+  line-height: 1.5;
+}
+
+/* ---------- Absence list (afwezige spelers per wedstrijd) ---------- */
+
+/* ---------- Wedstrijd-samenvatting (inklapbaar formulier + afwezigen) ---------- */
+
+.match-summary {
+  margin-bottom: 14px;
+}
+
+.match-summary__trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  background: var(--color-white);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-card);
+  padding: 12px 14px;
+  min-height: var(--tap-min);
+  cursor: pointer;
+}
+
+.match-summary__trigger::-webkit-details-marker {
+  display: none;
+}
+
+.match-summary__line {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-dark-green);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.match-summary__edit-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.match-summary__panel {
+  padding-top: 10px;
+}
+
+.absence-list {
+  list-style: none;
+  margin: 0 0 8px 0;
+  padding: 0;
+  background: var(--color-white);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.absence-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--color-line);
+  min-height: var(--tap-min);
+  cursor: pointer;
+}
+
+.absence-item:last-child {
+  border-bottom: none;
+}
+
+.absence-item input {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  accent-color: var(--color-danger);
+}
+
+.absence-item__name {
+  font-weight: 700;
+  font-size: 14px;
+  flex: 1;
+}
+
+.absence-item__meta {
+  font-size: 12px;
+  color: var(--color-gray);
+}
+
+/* ---------- Wisselmomenten (tijdsblokken) ---------- */
+
+.block-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 10px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.block-tab {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-round);
+  border: 2px solid var(--color-line);
+  background: var(--color-white);
+  color: var(--color-dark-green);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.block-tab--active {
+  background: var(--color-dark-green);
+  border-color: var(--color-dark-green);
+  color: var(--color-white);
+}
+
+.block-tab__delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-round);
+  background: rgba(255, 255, 255, 0.25);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.block-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.block-row .block-tabs {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.add-block-row {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.add-block-row__input {
+  width: 64px;
+  min-height: 44px;
+  padding: 0 6px;
+  font-size: 14px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.add-block-row__btn {
+  margin-top: 0;
+}
+
+.btn--icon-xs {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 17px;
+  border-radius: var(--radius-round);
+  flex-shrink: 0;
+}
+
+.block-active-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-green);
+  margin: 0 0 18px 0;
+}
+
+/* ---------- Pitch + wisselbank naast elkaar ---------- */
+
+.pitch-layout {
+  display: grid;
+  grid-template-columns: 1fr 88px;
+  gap: 8px;
+  /* align-items: start (i.p.v. stretch) zorgt dat het veld altijd zijn
+     eigen aspect-ratio aanhoudt en dus exact dezelfde afmetingen heeft
+     in Opstelling en Live Tracker, ongeacht hoe hoog de bank-sidebar is
+     (bijv. door de extra minutenbadge bij Live Tracker). */
+  align-items: start;
+  margin-bottom: 10px;
+}
+
+/* ---------- Opstelling-kiezer (Live Tracker) ---------- */
+
+.lineup-picker {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.lineup-picker__select {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 10px;
+  font-size: 14px;
+}
+
+/* ---------- Pitch (Wedstrijd & Opstelling) ---------- */
+
+.pitch {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--color-grass) 0px,
+    var(--color-grass) 40px,
+    var(--color-green) 40px,
+    var(--color-green) 80px
+  );
+  border-radius: var(--radius-l);
+  border: 4px solid var(--color-white);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+/* Toont enkel 1 pitchhelft (Wedstrijd & Opstelling): halve pitchlengte + 10% extra hoogte */
+.pitch--half {
+  aspect-ratio: 3 / 2.2;
+}
+
+.pitch__half-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+}
+
+.pitch__circle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 90px;
+  height: 90px;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.pitch__box {
+  position: absolute;
+  left: 50%;
+  width: 55%;
+  height: 14%;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.pitch--half .pitch__box {
+  height: 28%;
+}
+
+.pitch__box--top {
+  top: 0;
+  border-top: none;
+}
+
+.pitch__box--bottom {
+  bottom: 0;
+  border-bottom: none;
+}
+
+.pitch__goal {
+  position: absolute;
+  left: 50%;
+  width: 26%;
+  height: 5%;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.pitch--half .pitch__goal {
+  height: 10%;
+}
+
+.pitch__goal--top {
+  top: 0;
+  border-top: none;
+}
+
+.pitch__goal--bottom {
+  bottom: 0;
+  border-bottom: none;
+}
+
+/* Speler-token op het veld (versleepbaar) */
+.pitch-token {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 56px;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  z-index: 5;
+}
+
+.pitch-token__avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-round);
+  background: var(--color-white);
+  color: var(--color-dark-green);
+  border: 3px solid var(--color-dark-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: var(--shadow-card);
+}
+
+.pitch-token__name {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-white);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pitch-token--guest .pitch-token__avatar {
+  border-color: var(--color-grass-light);
+}
+
+.pitch-token__minutes {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--color-white);
+  background: rgba(11, 61, 36, 0.55);
+  border-radius: var(--radius-round);
+  padding: 1px 7px;
+  line-height: 1.5;
+}
+
+/* Kleurcodering voor wisselmomenten: vergelijking met het vorige blok */
+.pitch-token--new-in .pitch-token__avatar {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-white);
+}
+
+.pitch-token--moved .pitch-token__avatar {
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: var(--color-white);
+}
+
+.pitch-token.is-dragging,
+.bench-card.is-dragging {
+  opacity: 0.35;
+}
+
+/* Zwevende kaart die de vinger/muis volgt tijdens het slepen */
+.drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0.95;
+  transform: translate(-50%, -50%);
+  will-change: transform;
+}
+
+/* ---------- Wisselbank ---------- */
+
+.bench-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bench-sidebar__label {
+  margin: 0 0 4px 0;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--color-gray);
+  text-align: center;
+}
+
+.bench {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: var(--color-white);
+  border: 2px dashed var(--color-line);
+  border-radius: var(--radius-m);
+  padding: 14px;
+  min-height: 90px;
+}
+
+.bench.bench--sidebar {
+  flex: 1;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 8px 5px;
+  overflow-y: auto;
+}
+
+.bench-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap-min);
+  padding: 8px 14px 8px 8px;
+  background: var(--color-off-white);
+  border-radius: var(--radius-round);
+  border: 2px solid var(--color-line);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.bench--sidebar .bench-card {
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 6px 2px;
+  text-align: center;
+}
+
+.bench--sidebar .bench-card__name {
+  font-size: 10px;
+  white-space: normal;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.bench-card__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-round);
+  background: var(--color-dark-green);
+  color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.bench-card--guest .bench-card__avatar {
+  background: var(--color-grass);
+}
+
+.bench-card__name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-dark-green);
+  white-space: nowrap;
+}
+
+.bench-card__minutes {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--color-gray);
+  white-space: nowrap;
+}
+
+/* ---------- Save hint ---------- */
+
+.save-hint {
+  text-align: center;
+  color: var(--color-green);
+  font-weight: 700;
+  font-size: 13px;
+  margin-top: 10px;
+}
+
+/* ---------- Alarm-banner (wissel over 5 min) ---------- */
+
+.alarm-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--color-warning);
+  color: var(--color-white);
+  border-radius: var(--radius-m);
+  padding: 14px 16px;
+  font-weight: 800;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 14px;
+}
+
+.alarm-banner[hidden] {
+  display: none;
+}
+
+.alarm-banner__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.alarm-banner__icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.alarm-banner__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.alarm-banner__actions .btn {
+  flex: 1;
+  min-height: 38px;
+}
+
+.alarm-banner.is-blinking {
+  animation: alarm-blink 1s steps(1, end) infinite;
+}
+
+@keyframes alarm-blink {
+  0%, 49% {
+    background: var(--color-warning);
+  }
+  50%, 100% {
+    background: var(--color-danger);
+  }
+}
+
+/* ---------- Timer card (Live Tracker) ---------- */
+
+.timer-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.timer-card {
+  background: linear-gradient(135deg, var(--color-dark-green), var(--color-green));
+  border-radius: var(--radius-l);
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-shadow: var(--shadow-elevated);
+}
+
+.timer-card__time {
+  font-size: 52px;
+  font-weight: 800;
+  color: var(--color-white);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+.timer-card__half {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--color-grass-light);
+}
+
+.timer-card__controls {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.btn--timer-toggle.is-running {
+  background: var(--color-danger);
+  box-shadow: 0 4px 14px rgba(217, 72, 62, 0.35);
+}
+
+.timer-adjust {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 2px 0;
+}
+
+/* Compacte horizontale variant naast de 'Wedstrijd beëindigen'-knop */
+.timer-card--compact {
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.timer-card--compact .timer-card__time-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.timer-card--compact .timer-card__half {
+  font-size: 9px;
+}
+
+.timer-card--compact .timer-card__time {
+  font-size: 24px;
+  letter-spacing: 0.5px;
+}
+
+.timer-card--compact .timer-adjust {
+  margin: 0;
+  gap: 6px;
+}
+
+.timer-card--compact .btn--chip {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.timer-card--compact .timer-card__controls {
+  margin-top: 0;
+  gap: 8px;
+}
+
+.btn--icon-round--sm {
+  min-width: 40px;
+  min-height: 40px;
+  font-size: 16px;
+}
+
+.timer-row__end-btn {
+  flex-shrink: 0;
+  align-self: stretch;
+  height: auto;
+  min-width: 48px;
+  font-size: 20px;
+}
+
+/* ---------- Wisselregistratie-log (Live Tracker) ---------- */
+
+.sub-log {
+  list-style: none;
+  margin: 0 0 10px 0;
+  padding: 0;
+  background: var(--color-white);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.sub-log__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-line);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sub-log__item:last-child {
+  border-bottom: none;
+}
+
+.sub-log__time {
+  font-weight: 800;
+  color: var(--color-green);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Cards (Data import/export) ---------- */
+
+.card {
+  background: var(--color-white);
+  border-radius: var(--radius-m);
+  padding: 18px;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 16px;
+}
+
+.card--compact {
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+/* ---------- Speler toevoegen (Teambeheer: compact 2-regelig formulier) ---------- */
+
+.player-form-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.player-form-row + .player-form-row {
+  margin-top: 10px;
+}
+
+.player-form-field {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.player-form-field--grow {
+  flex: 1 1 auto;
+}
+
+.player-form-row__actions {
+  flex: 1 1 auto;
+  margin-top: 0;
+}
+
+.chip-group--compact {
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.checkbox-row--inline {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.card__title {
+  margin: 0 0 6px 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.card__text {
+  margin: 0 0 14px 0;
+  font-size: 13px;
+  color: var(--color-gray);
+}
+
+.card__filename {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-gray);
+  text-align: center;
+}
+
+.card__filename--error {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+/* ---------- Bottom navigation ---------- */
+
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  height: calc(var(--nav-height) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--color-white);
+  border-top: 1px solid var(--color-line);
+  box-shadow: 0 -4px 16px rgba(11, 61, 36, 0.1);
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--tap-min);
+  background: transparent;
+  border: none;
+  color: var(--color-gray);
+  padding: 6px 2px;
+}
+
+.nav-item__icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.nav-item__label {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nav-item--active {
+  color: var(--color-green);
+}
+
+.nav-item--active .nav-item__icon {
+  transform: translateY(-2px);
+}
+
+.nav-item:active {
+  opacity: 0.6;
+}
+
+/* ---------- Responsive: larger screens ---------- */
+
+@media (min-width: 700px) {
+  .app-main {
+    max-width: 720px;
+  }
+
+  .bottom-nav {
+    max-width: 720px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: var(--radius-l) var(--radius-l) 0 0;
+    border-left: 1px solid var(--color-line);
+    border-right: 1px solid var(--color-line);
+  }
+}
