@@ -2849,14 +2849,36 @@
   }
 
   /**
-   * Registreert de Service Worker voor offline gebruik (PWA).
+   * Registreert de Service Worker voor offline gebruik (PWA) en zorgt
+   * ervoor dat updates (nieuwe CACHE_NAME-versie in sw.js) direct
+   * zichtbaar worden:
+   * - updateViaCache: "none" dwingt de browser om sw.js zelf altijd
+   *   rechtstreeks bij de server te controleren op wijzigingen, in
+   *   plaats van een verouderde versie uit de HTTP-cache te gebruiken
+   *   (een bekende oorzaak van "blijft oude versie tonen" op GitHub
+   *   Pages).
+   * - De "controllerchange"-listener herlaadt de pagina automatisch
+   *   zodra een nieuwe service worker de controle overneemt, zodat de
+   *   trainer de update direct ziet zonder handmatig te hoeven
+   *   verversen.
    */
   function initServiceWorker() {
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("sw.js").catch(function (error) {
-          console.error("Service worker registratie mislukt:", error);
-        });
+        navigator.serviceWorker
+          .register("sw.js", { updateViaCache: "none" })
+          .catch(function (error) {
+            console.error("Service worker registratie mislukt:", error);
+          });
+      });
+
+      let reloadedForUpdate = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (reloadedForUpdate) {
+          return;
+        }
+        reloadedForUpdate = true;
+        window.location.reload();
       });
     }
   }
@@ -2869,9 +2891,15 @@
    * ernaast. Werkt voor elk schermformaat (telefoon, tablet, desktop) en
    * herberekent bij het draaien/resizen van het scherm, het wisselen van
    * view en het open-/dichtklappen van de wedstrijdgegevens.
+   *
+   * De Opstelling ("#pitch") is hierbij leidend: het veld bij Live
+   * Tracker ("#live-pitch") krijgt altijd exact dezelfde breedte/hoogte
+   * als het veld bij Opstelling, zodat beide velden er identiek uitzien.
    */
   function initResponsivePitchSizing() {
-    const pitchEls = Array.from(document.querySelectorAll(".pitch"));
+    const pitchEl = document.getElementById("pitch");
+    const livePitchEl = document.getElementById("live-pitch");
+    const pitchEls = [pitchEl, livePitchEl].filter(Boolean);
     const bottomNav = document.getElementById("bottom-nav");
 
     if (pitchEls.length === 0) {
@@ -2883,9 +2911,12 @@
     const MIN_PITCH_WIDTH = 160;
     const BOTTOM_MARGIN = 12;
 
-    function resizePitch(pitchEl) {
-      if (pitchEl.offsetParent === null) {
-        return; // zit in een niet-actieve (display:none) view, niets te berekenen
+    // Berekent de ideale breedte voor een veld-element op basis van de
+    // ruimte die er op dit moment voor beschikbaar is. Geeft null terug
+    // als het element in een niet-actieve (display:none) view zit.
+    function computeCandidateWidth(pitchEl) {
+      if (!pitchEl || pitchEl.offsetParent === null) {
+        return null;
       }
 
       const layout = pitchEl.closest(".pitch-layout");
@@ -2901,9 +2932,17 @@
       const availableHeight = navTop - pitchTop - BOTTOM_MARGIN;
 
       const widthFromHeight = availableHeight * PITCH_ASPECT;
-      const finalWidth = Math.max(MIN_PITCH_WIDTH, Math.min(availableWidth, widthFromHeight));
+      return Math.max(MIN_PITCH_WIDTH, Math.min(availableWidth, widthFromHeight));
+    }
 
-      pitchEl.style.width = Math.floor(finalWidth) + "px";
+    // Referentiebreedte: zolang Opstelling zichtbaar is (geweest), is
+    // haar veld leidend voor de afmetingen van beide velden.
+    let referenceWidth = null;
+
+    function applyWidth(width) {
+      pitchEls.forEach(function (el) {
+        el.style.width = Math.floor(width) + "px";
+      });
     }
 
     let rafId = null;
@@ -2913,7 +2952,22 @@
       }
       rafId = window.requestAnimationFrame(function () {
         rafId = null;
-        pitchEls.forEach(resizePitch);
+
+        const opstellingCandidate = computeCandidateWidth(pitchEl);
+        if (opstellingCandidate !== null) {
+          referenceWidth = opstellingCandidate;
+        } else if (referenceWidth === null) {
+          // Opstelling is nog nooit gemeten (bv. Live is als eerste geopend):
+          // val tijdelijk terug op de eigen meting van Live Tracker.
+          const liveCandidate = computeCandidateWidth(livePitchEl);
+          if (liveCandidate !== null) {
+            referenceWidth = liveCandidate;
+          }
+        }
+
+        if (referenceWidth !== null) {
+          applyWidth(referenceWidth);
+        }
       });
     }
 
