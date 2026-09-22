@@ -2141,6 +2141,18 @@
         currentMatch.playerMinutes = {};
         persistMatchStore();
       }
+      // Ruwe (seconde-nauwkeurige) speeltijd per speler, bijgehouden zodat
+      // gespeelde minuten altijd rechtstreeks van de timer worden afgelezen
+      // (incl. handmatige +1'/-1' aanpassingen) en pas bij weergave op hele
+      // minuten worden afgerond.
+      if (!currentMatch.live.playerSecondsRaw) {
+        currentMatch.live.playerSecondsRaw = {};
+        persistMatchStore();
+      }
+      if (typeof currentMatch.live.lastSyncSeconds !== "number") {
+        currentMatch.live.lastSyncSeconds = currentMatch.live.elapsedSeconds;
+        persistMatchStore();
+      }
       if (typeof currentMatch.ended !== "boolean") {
         currentMatch.ended = false;
         persistMatchStore();
@@ -2307,7 +2319,7 @@
 
       const minutesEl = document.createElement("span");
       minutesEl.className = "pitch-token__minutes";
-      minutesEl.textContent = (player.seasonMinutes || 0) + "'";
+      minutesEl.textContent = ((currentMatch.playerMinutes && currentMatch.playerMinutes[player.id]) || 0) + "'";
 
       token.appendChild(avatar);
       token.appendChild(nameEl);
@@ -2372,6 +2384,7 @@
     }
 
     function renderPitch() {
+      settleMinutes();
       pitchEl.querySelectorAll(".pitch-token").forEach(function (el) {
         el.remove();
       });
@@ -2417,7 +2430,7 @@
 
         const minutesEl = document.createElement("span");
         minutesEl.className = "bench-card__minutes";
-        minutesEl.textContent = (player.seasonMinutes || 0) + "'";
+        minutesEl.textContent = ((currentMatch.playerMinutes && currentMatch.playerMinutes[player.id]) || 0) + "'";
 
         card.appendChild(avatar);
         card.appendChild(nameEl);
@@ -2541,6 +2554,11 @@
 
         const positionBeforeDrag = origin === "pitch" ? currentMatch.live.positions[playerId] : null;
 
+        // Reken eerst de tot nu toe verstreken tijd toe aan de spelers die
+        // nog op hun oude plek staan, vóórdat de opstelling hieronder wijzigt -
+        // zo krijgt een ingewisselde speler pas vanaf dit moment speeltijd.
+        settleMinutes();
+
         // Let op: referencePositions wordt hier bewust NIET bijgewerkt. Die
         // blijft staan vanaf het laatst toegepaste blok/de wedstrijdstart,
         // zodat alle sindsdien ingevallen (rood) of verplaatste (oranje)
@@ -2624,41 +2642,59 @@
       document.addEventListener("pointercancel", onPointerUp);
     }
 
-    // --- Automatische speelminuten-registratie (seizoenstotaal) ---
+    // --- Automatische speelminuten-registratie, rechtstreeks van de timer ---
 
-    function accrueMinuteForOnFieldPlayers() {
-      let changed = false;
-      currentMatch.playerMinutes = currentMatch.playerMinutes || {};
-      Object.keys(currentMatch.live.positions).forEach(function (playerId) {
-        const player = findPlayer(playerId);
-        if (player) {
-          player.seasonMinutes = (player.seasonMinutes || 0) + 1;
-          // Naast het seizoenstotaal ook per-wedstrijd bijhouden, zodat het
-          // Dashboard een kolom "minuten per wedstrijd" kan tonen.
-          currentMatch.playerMinutes[playerId] = (currentMatch.playerMinutes[playerId] || 0) + 1;
-          changed = true;
-        }
-      });
-      if (changed) {
-        persistTeamData();
+    /**
+     * Boekt de seconden bij die sinds de vorige afrekening zijn verstreken
+     * (kan ook negatief zijn, bv. bij het terugzetten van de timer) toe aan
+     * elke speler die op dít moment op het veld staat. Wordt aangeroepen
+     * vlak vóórdat de timer of de opstelling wijzigt, zodat elke speler
+     * precies de tijd toegerekend krijgt die hij daadwerkelijk op het veld
+     * heeft gestaan volgens de timer - ook bij handmatige +1'/-1'
+     * aanpassingen, resets of wissels halverwege een minuut. De op hele
+     * minuten afgeronde uitkomst komt in currentMatch.playerMinutes, wat
+     * ook het Dashboard en het correctie-overzicht gebruiken.
+     */
+    function settleMinutes() {
+      const elapsed = currentMatch.live.elapsedSeconds;
+      const last =
+        typeof currentMatch.live.lastSyncSeconds === "number" ? currentMatch.live.lastSyncSeconds : elapsed;
+      const delta = elapsed - last;
+      currentMatch.live.lastSyncSeconds = elapsed;
+      if (delta === 0) {
+        return;
       }
-    }
 
-    // Tegenhanger van accrueMinuteForOnFieldPlayers: trekt een minuut af
-    // wanneer de trainer de timer handmatig terugzet, zodat spelersminuten
-    // altijd de timer volgen (ook bij handmatige +1'/-1' correcties).
-    function deaccrueMinuteForOnFieldPlayers() {
-      let changed = false;
+      currentMatch.live.playerSecondsRaw = currentMatch.live.playerSecondsRaw || {};
       currentMatch.playerMinutes = currentMatch.playerMinutes || {};
+      let teamDataChanged = false;
+
       Object.keys(currentMatch.live.positions).forEach(function (playerId) {
-        const player = findPlayer(playerId);
-        if (player) {
-          player.seasonMinutes = Math.max(0, (player.seasonMinutes || 0) - 1);
-          currentMatch.playerMinutes[playerId] = Math.max(0, (currentMatch.playerMinutes[playerId] || 0) - 1);
-          changed = true;
+        // Bij de allereerste afrekening voor deze speler is er nog geen
+        // seconde-nauwkeurige teller: seed die dan vanuit de al bekende
+        // (eerder afgeronde) minuten, zodat bestaande wedstrijden hun
+        // opgebouwde speeltijd behouden in plaats van terug te vallen op 0.
+        const hasRawEntry = Object.prototype.hasOwnProperty.call(currentMatch.live.playerSecondsRaw, playerId);
+        const rawBefore = hasRawEntry
+          ? currentMatch.live.playerSecondsRaw[playerId]
+          : (currentMatch.playerMinutes[playerId] || 0) * 60;
+        const rawAfter = Math.max(0, rawBefore + delta);
+        currentMatch.live.playerSecondsRaw[playerId] = rawAfter;
+
+        const minutesBefore = currentMatch.playerMinutes[playerId] || 0;
+        const minutesAfter = Math.round(rawAfter / 60);
+        if (minutesAfter !== minutesBefore) {
+          currentMatch.playerMinutes[playerId] = minutesAfter;
+          const player = findPlayer(playerId);
+          if (player) {
+            player.seasonMinutes = Math.max(0, (player.seasonMinutes || 0) + (minutesAfter - minutesBefore));
+            teamDataChanged = true;
+          }
         }
       });
-      if (changed) {
+
+      persistMatchStore();
+      if (teamDataChanged) {
         persistTeamData();
       }
     }
@@ -2700,6 +2736,10 @@
      * handmatige opstelling-kiezer.
      */
     function applyLineupToLive(block, sourceLabel) {
+      // Reken eerst de tot nu toe verstreken tijd toe aan de huidige
+      // opstelling, vóórdat deze hieronder wordt vervangen.
+      settleMinutes();
+
       const previousPositions = currentMatch.live.positions;
       const newPositions = JSON.parse(JSON.stringify(block.positions || {}));
 
@@ -2849,13 +2889,10 @@
 
     function tick() {
       currentMatch.live.elapsedSeconds += 1;
+      settleMinutes();
       renderTimer();
-
-      if (currentMatch.live.elapsedSeconds % 60 === 0) {
-        accrueMinuteForOnFieldPlayers();
-        renderPitch();
-        renderBench();
-      }
+      renderPitch();
+      renderBench();
 
       checkUpcomingBlockAlert();
       persistMatchStore();
@@ -2900,25 +2937,25 @@
       pauseTimer();
       currentMatch.live.elapsedSeconds = 0;
       alertedBlockIds = {};
+      settleMinutes();
+      renderPitch();
+      renderBench();
       persistMatchStore();
       renderTimer();
     });
 
     btnMinus.addEventListener("click", function () {
-      const hadFullMinute = currentMatch.live.elapsedSeconds >= 60;
       currentMatch.live.elapsedSeconds = Math.max(0, currentMatch.live.elapsedSeconds - 60);
-      if (hadFullMinute) {
-        deaccrueMinuteForOnFieldPlayers();
-        renderPitch();
-        renderBench();
-      }
+      settleMinutes();
+      renderPitch();
+      renderBench();
       persistMatchStore();
       renderTimer();
     });
 
     btnPlus.addEventListener("click", function () {
       currentMatch.live.elapsedSeconds += 60;
-      accrueMinuteForOnFieldPlayers();
+      settleMinutes();
       renderPitch();
       renderBench();
       persistMatchStore();
