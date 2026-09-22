@@ -2940,8 +2940,20 @@
     let referenceWidth = null;
 
     function applyWidth(width) {
+      const height = width / PITCH_ASPECT;
       pitchEls.forEach(function (el) {
         el.style.width = Math.floor(width) + "px";
+
+        // De wisselbank ernaast krijgt exact dezelfde hoogte als het
+        // veld, en scrollt daarbinnen zelf (zie .bench.bench--sidebar
+        // in style.css). Zo blijft het veld altijd volledig zichtbaar
+        // terwijl je door de spelerslijst scrolt om een speler te
+        // vinden en naar het veld te slepen.
+        const layout = el.closest(".pitch-layout");
+        const bench = layout ? layout.querySelector(".bench-sidebar") : null;
+        if (bench) {
+          bench.style.height = Math.floor(height) + "px";
+        }
       });
     }
 
