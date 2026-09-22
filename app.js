@@ -2902,6 +2902,7 @@
     const pitchEls = [pitchEl, livePitchEl].filter(Boolean);
     const bottomNav = document.getElementById("bottom-nav");
     const topbar = document.querySelector(".app-topbar");
+    const viewportProbe = document.getElementById("viewport-probe");
 
     if (pitchEls.length === 0) {
       return;
@@ -2912,18 +2913,36 @@
     const MIN_PITCH_WIDTH = 160;
     const BOTTOM_MARGIN = 12;
 
+    // Geeft een stabiele totale viewporthoogte terug die niet meebeweegt
+    // met het in-/uitklappen van de adresbalk van mobiele browsers tijdens
+    // het scrollen (zie #viewport-probe in style.css, gebaseerd op de
+    // CSS-eenheid "svh"). window.innerHeight is hiervoor NIET geschikt:
+    // die verandert juist wél live mee met de adresbalk, wat ervoor
+    // zorgde dat het veld tijdens het scrollen door de spelerslijst
+    // steeds van grootte veranderde.
+    function getStableViewportHeight() {
+      if (viewportProbe) {
+        const height = viewportProbe.getBoundingClientRect().height;
+        if (height > 0) {
+          return height;
+        }
+      }
+      return window.innerHeight;
+    }
+
     // Berekent de ideale breedte voor een veld-element op basis van de
     // ruimte die er op dit moment voor beschikbaar is. Geeft null terug
     // als het element in een niet-actieve (display:none) view zit.
     //
-    // De beschikbare hoogte wordt berekend tussen de (sticky) topbar en
-    // de (fixed) onderste navigatiebalk - dus NIET op basis van de
-    // huidige scrollpositie van het veld zelf. Beide zijn altijd op
-    // dezelfde plek in het viewport te vinden, ongeacht hoever de
-    // gebruiker gescrold heeft. Zo blijft het veld altijd even groot
-    // (net zo groot als wanneer het veld mooi centraal/boven in beeld
-    // staat), in plaats van kleiner te worden afhankelijk van de
-    // toevallige scrollpositie op het moment van herberekenen.
+    // De beschikbare hoogte wordt berekend als: stabiele viewporthoogte
+    // min de (vaste, CSS-bepaalde) hoogte van topbar en onderste
+    // navigatiebalk. Er wordt bewust NIET gerekend met de positie
+    // (top/bottom) van deze fixed/sticky elementen: die positie schuift
+    // op mobiele browsers namelijk mee met de in-/uitklappende adresbalk
+    // en met de actuele scrollpositie, wat het veld onterecht van
+    // grootte liet veranderen tijdens het scrollen door de spelerslijst.
+    // De hóógte van topbar/navbalk zelf is wél altijd stabiel (vaste
+    // CSS-waarden), dus die mag gewoon gemeten worden.
     function computeCandidateWidth(pitchEl) {
       if (!pitchEl || pitchEl.offsetParent === null) {
         return null;
@@ -2937,9 +2956,9 @@
         ? layout.getBoundingClientRect().width - benchWidth - gap
         : pitchEl.clientWidth;
 
-      const navTop = bottomNav ? bottomNav.getBoundingClientRect().top : window.innerHeight;
-      const topbarBottom = topbar ? topbar.getBoundingClientRect().bottom : 0;
-      const availableHeight = navTop - topbarBottom - BOTTOM_MARGIN;
+      const topbarHeight = topbar ? topbar.getBoundingClientRect().height : 0;
+      const navHeight = bottomNav ? bottomNav.getBoundingClientRect().height : 0;
+      const availableHeight = getStableViewportHeight() - topbarHeight - navHeight - BOTTOM_MARGIN;
 
       const widthFromHeight = availableHeight * PITCH_ASPECT;
       return Math.max(MIN_PITCH_WIDTH, Math.min(availableWidth, widthFromHeight));

@@ -53,6 +53,23 @@ button, input, select {
   font-family: inherit;
 }
 
+/* Onzichtbaar "meetlatje": geeft JS een stabiele viewporthoogte die niet
+   verandert wanneer de adresbalk van een mobiele browser tijdens het
+   scrollen in-/uitklapt (100svh = "small viewport height", d.w.z. de
+   hoogte die altijd beschikbaar is, ook mét zichtbare adresbalk). Browsers
+   zonder svh-ondersteuning gebruiken de gewone (iets minder stabiele) vh. */
+#viewport-probe {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 100vh;
+  height: 100svh;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
 /* ---------- Topbar ---------- */
 
 .app-topbar {

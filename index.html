@@ -16,6 +16,12 @@
 </head>
 <body>
 
+  <!-- Onzichtbaar "meetlatje" (svh = stabiele, kleinst-mogelijke viewporthoogte)
+       waarmee JS de beschikbare schermhoogte voor het voetbalveld bepaalt.
+       Hiermee blijft het veld exact even groot, ook als de adresbalk van de
+       mobiele browser in-/uitklapt tijdens het scrollen door de spelerslijst. -->
+  <div id="viewport-probe" aria-hidden="true"></div>
+
   <!-- Topbar -->
   <header class="app-topbar">
     <span class="app-topbar__logo" aria-hidden="true">⚽</span>
