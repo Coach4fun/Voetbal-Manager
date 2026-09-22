@@ -2861,6 +2861,74 @@
     }
   }
 
+  /**
+   * Past de afmetingen van de veld-weergaves (Opstelling en Live Tracker)
+   * dynamisch aan op de beschikbare ruimte van het scherm, zodat het
+   * volledige voetbalveld altijd zo groot mogelijk getoond wordt — tot
+   * aan de onderste navigatiebalk — met alleen de smalle wisselbank
+   * ernaast. Werkt voor elk schermformaat (telefoon, tablet, desktop) en
+   * herberekent bij het draaien/resizen van het scherm, het wisselen van
+   * view en het open-/dichtklappen van de wedstrijdgegevens.
+   */
+  function initResponsivePitchSizing() {
+    const pitchEls = Array.from(document.querySelectorAll(".pitch"));
+    const bottomNav = document.getElementById("bottom-nav");
+
+    if (pitchEls.length === 0) {
+      return;
+    }
+
+    // Breedte/hoogte-verhouding van het volledige veld (zie .pitch in style.css)
+    const PITCH_ASPECT = 3 / 4;
+    const MIN_PITCH_WIDTH = 160;
+    const BOTTOM_MARGIN = 12;
+
+    function resizePitch(pitchEl) {
+      if (pitchEl.offsetParent === null) {
+        return; // zit in een niet-actieve (display:none) view, niets te berekenen
+      }
+
+      const layout = pitchEl.closest(".pitch-layout");
+      const bench = layout ? layout.querySelector(".bench-sidebar") : null;
+      const gap = 8;
+      const benchWidth = bench ? bench.getBoundingClientRect().width : 0;
+      const availableWidth = layout
+        ? layout.getBoundingClientRect().width - benchWidth - gap
+        : pitchEl.clientWidth;
+
+      const navTop = bottomNav ? bottomNav.getBoundingClientRect().top : window.innerHeight;
+      const pitchTop = pitchEl.getBoundingClientRect().top;
+      const availableHeight = navTop - pitchTop - BOTTOM_MARGIN;
+
+      const widthFromHeight = availableHeight * PITCH_ASPECT;
+      const finalWidth = Math.max(MIN_PITCH_WIDTH, Math.min(availableWidth, widthFromHeight));
+
+      pitchEl.style.width = Math.floor(finalWidth) + "px";
+    }
+
+    let rafId = null;
+    function scheduleResize() {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      rafId = window.requestAnimationFrame(function () {
+        rafId = null;
+        pitchEls.forEach(resizePitch);
+      });
+    }
+
+    window.addEventListener("resize", scheduleResize);
+    window.addEventListener("orientationchange", scheduleResize);
+    document.addEventListener("vtm:view-activated", scheduleResize);
+
+    const matchSummaryDetails = document.getElementById("match-summary");
+    if (matchSummaryDetails) {
+      matchSummaryDetails.addEventListener("toggle", scheduleResize);
+    }
+
+    scheduleResize();
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     initNavigation();
     initDashboard();
@@ -2868,6 +2936,7 @@
     initMatchManagement();
     initLiveTracker();
     initDataImport();
+    initResponsivePitchSizing();
     initServiceWorker();
   });
 })();

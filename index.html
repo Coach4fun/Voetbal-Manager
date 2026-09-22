@@ -173,7 +173,7 @@
     <section id="view-wedstrijd" class="view" data-view="wedstrijd">
       <div class="view-title-row">
         <h2 class="view__title">Wedstrijd &amp; Opstelling</h2>
-        <p class="hint-text hint-text--inline">Voeg een nieuw wisselmoment toe vanaf een bepaalde minuut. De opstelling van het vorige blok is dan het vertrekpunt.</p>
+        <p class="hint-text hint-text--inline hint-text--compact-hide">Voeg een nieuw wisselmoment toe vanaf een bepaalde minuut. De opstelling van het vorige blok is dan het vertrekpunt.</p>
       </div>
 
       <div class="lineup-picker" id="match-select-row">
@@ -243,11 +243,15 @@
       </div>
       <p class="block-active-label" id="block-active-label"></p>
 
-      <p class="hint-text" id="block-color-hint">🔴 Nieuw vanaf de bank &nbsp;·&nbsp; 🟠 Verplaatst &nbsp;·&nbsp; Sleep spelers tussen veld en bank</p>
+      <p class="hint-text hint-text--compact-hide" id="block-color-hint">🔴 Nieuw vanaf de bank &nbsp;·&nbsp; 🟠 Verplaatst &nbsp;·&nbsp; Sleep spelers tussen veld en bank</p>
       <div class="pitch-layout">
-        <div class="pitch pitch--half" id="pitch">
+        <div class="pitch" id="pitch">
+          <div class="pitch__half-line"></div>
+          <div class="pitch__circle"></div>
           <div class="pitch__box pitch__box--top"></div>
+          <div class="pitch__box pitch__box--bottom"></div>
           <div class="pitch__goal pitch__goal--top"></div>
+          <div class="pitch__goal pitch__goal--bottom"></div>
           <!-- Spelerskaartjes op het veld worden hier dynamisch geplaatst -->
         </div>
         <div class="bench-sidebar">
@@ -299,16 +303,20 @@
       </div>
 
       <h3 class="section-heading">Live Opstelling</h3>
-      <p class="hint-text">Sleep een bankspeler op een veldspeler om te wisselen. Sleep een veldspeler naar de bank voor een man minder.</p>
-      <p class="hint-text" id="live-block-color-hint">🔴 Nieuw vanaf de bank &nbsp;·&nbsp; 🟠 Verplaatst &nbsp;·&nbsp; Sleep spelers tussen veld en bank</p>
+      <p class="hint-text hint-text--compact-hide">Sleep een bankspeler op een veldspeler om te wisselen. Sleep een veldspeler naar de bank voor een man minder.</p>
+      <p class="hint-text hint-text--compact-hide" id="live-block-color-hint">🔴 Nieuw vanaf de bank &nbsp;·&nbsp; 🟠 Verplaatst &nbsp;·&nbsp; Sleep spelers tussen veld en bank</p>
       <div class="lineup-picker">
         <select class="field-select lineup-picker__select" id="live-lineup-select" aria-label="Kies een gemaakte opstelling"></select>
         <button type="button" class="btn btn--compact btn--secondary" id="btn-apply-lineup">Overnemen</button>
       </div>
       <div class="pitch-layout">
-        <div class="pitch pitch--half" id="live-pitch">
+        <div class="pitch" id="live-pitch">
+          <div class="pitch__half-line"></div>
+          <div class="pitch__circle"></div>
           <div class="pitch__box pitch__box--top"></div>
+          <div class="pitch__box pitch__box--bottom"></div>
           <div class="pitch__goal pitch__goal--top"></div>
+          <div class="pitch__goal pitch__goal--bottom"></div>
           <!-- Spelerskaartjes op het veld worden hier dynamisch geplaatst -->
         </div>
         <div class="bench-sidebar">

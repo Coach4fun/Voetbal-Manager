@@ -731,6 +731,15 @@ button, input, select {
   line-height: 1.5;
 }
 
+/* Op kleine schermen (telefoon, of weinig hoogte) verbergen we de
+   uitlegteksten boven het veld, zodat het voetbalveld zelf zoveel
+   mogelijk van de beschikbare ruimte krijgt. */
+@media (max-width: 480px), (max-height: 480px) {
+  .hint-text--compact-hide {
+    display: none;
+  }
+}
+
 /* ---------- Absence list (afwezige spelers per wedstrijd) ---------- */
 
 /* ---------- Wedstrijd-samenvatting (inklapbaar formulier + afwezigen) ---------- */
@@ -923,8 +932,12 @@ button, input, select {
   /* align-items: start (i.p.v. stretch) zorgt dat het veld altijd zijn
      eigen aspect-ratio aanhoudt en dus exact dezelfde afmetingen heeft
      in Opstelling en Live Tracker, ongeacht hoe hoog de bank-sidebar is
-     (bijv. door de extra minutenbadge bij Live Tracker). */
+     (bijv. door de extra minutenbadge bij Live Tracker). justify-items:
+     center zorgt dat het veld gecentreerd blijft in zijn kolom wanneer
+     JS de breedte kleiner zet dan de kolom (bv. op een laag/breed
+     scherm, waar de hoogte van het scherm de beperkende factor is). */
   align-items: start;
+  justify-items: center;
   margin-bottom: 10px;
 }
 
@@ -965,11 +978,6 @@ button, input, select {
   user-select: none;
 }
 
-/* Toont enkel 1 pitchhelft (Wedstrijd & Opstelling): halve pitchlengte + 10% extra hoogte */
-.pitch--half {
-  aspect-ratio: 3 / 2.2;
-}
-
 .pitch__half-line {
   position: absolute;
   left: 0;
@@ -1002,10 +1010,6 @@ button, input, select {
   pointer-events: none;
 }
 
-.pitch--half .pitch__box {
-  height: 28%;
-}
-
 .pitch__box--top {
   top: 0;
   border-top: none;
@@ -1024,10 +1028,6 @@ button, input, select {
   border: 2px solid rgba(255, 255, 255, 0.7);
   transform: translateX(-50%);
   pointer-events: none;
-}
-
-.pitch--half .pitch__goal {
-  height: 10%;
 }
 
 .pitch__goal--top {
