@@ -711,11 +711,40 @@
       return parsed.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
     }
 
+    /**
+     * Geeft vandaag terug als "YYYY-MM-DD" (lokale tijd), zodat dit
+     * lexicografisch vergeleken kan worden met de opgeslagen wedstrijddatums.
+     */
+    function getTodayDateString() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return year + "-" + month + "-" + day;
+    }
+
+    /**
+     * Zoekt de eerstvolgende wedstrijd (op of na vandaag) uit alle
+     * opgevoerde wedstrijden van dit team, in plaats van blind de laatst
+     * geselecteerde (actieve) wedstrijd uit Opstelling/Live Tracker te tonen.
+     */
+    function findNextUpcomingMatch(team) {
+      const todayStr = getTodayDateString();
+      const candidates = getTeamMatches(team).filter(function (match) {
+        return match.opponent && match.date && match.date >= todayStr;
+      });
+      candidates.sort(function (a, b) {
+        if (a.date !== b.date) {
+          return a.date.localeCompare(b.date);
+        }
+        return (a.time || "").localeCompare(b.time || "");
+      });
+      return candidates[0] || null;
+    }
+
     function renderUpcomingMatch(team) {
-      const matchStore = loadMatchStore();
-      const bucket = ensureTeamMatchBucket(matchStore, team);
-      const match = getBucketMatch(bucket, bucket.activeMatchId);
-      if (!match || !match.opponent) {
+      const match = findNextUpcomingMatch(team);
+      if (!match) {
         upcomingTeamsEl.textContent = "–";
         upcomingMetaEl.textContent = "Geen wedstrijd ingepland";
         return;
@@ -765,6 +794,11 @@
       minutesTableHeadRow.appendChild(nameTh);
 
       if (showTotals) {
+        const playedTh = document.createElement("th");
+        playedTh.className = "minutes-table__played";
+        playedTh.textContent = "Wedstr.";
+        minutesTableHeadRow.appendChild(playedTh);
+
         const totalTh = document.createElement("th");
         totalTh.className = "minutes-table__total";
         totalTh.textContent = "Totaal";
@@ -797,14 +831,27 @@
         tr.appendChild(nameTd);
 
         if (showTotals) {
-          const totalTd = document.createElement("td");
-          totalTd.className = "minutes-table__total";
+          // Wedstrijden waarin de speler daadwerkelijk in het veld heeft
+          // gestaan (minuten > 0), ongeacht of hij startte of inviel.
+          const playedCount = matches.filter(function (match) {
+            return match.playerMinutes && (match.playerMinutes[player.id] || 0) > 0;
+          }).length;
           const startsCount = matches.filter(function (match) {
             return match.live && Array.isArray(match.live.startingPlayerIds) && match.live.startingPlayerIds.indexOf(player.id) !== -1;
           }).length;
 
+          const playedTd = document.createElement("td");
+          playedTd.className = "minutes-table__played";
+          const playedSpan = document.createElement("span");
+          playedSpan.className = "minutes-table__cell-minutes";
+          playedSpan.textContent = String(playedCount);
+          playedTd.appendChild(playedSpan);
+          tr.appendChild(playedTd);
+
+          const totalTd = document.createElement("td");
+          totalTd.className = "minutes-table__total";
           const cell = document.createElement("div");
-          cell.className = "minutes-table__cell";
+          cell.className = "minutes-table__cell minutes-table__cell--row";
           const minutesSpan = document.createElement("span");
           minutesSpan.className = "minutes-table__cell-minutes";
           minutesSpan.textContent = (player.seasonMinutes || 0) + "'";

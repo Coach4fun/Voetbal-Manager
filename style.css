@@ -206,7 +206,8 @@ button, input, select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px 8px;
   margin: 14px 0 6px 0;
 }
 
@@ -247,7 +248,7 @@ button, input, select {
 
 .minutes-table {
   border-collapse: collapse;
-  width: 100%;
+  table-layout: fixed;
 }
 
 .minutes-table th,
@@ -256,6 +257,7 @@ button, input, select {
   text-align: center;
   white-space: nowrap;
   border-bottom: 1px solid var(--color-line);
+  box-sizing: border-box;
 }
 
 .minutes-table tbody tr:last-child td {
@@ -274,6 +276,7 @@ button, input, select {
 }
 
 .minutes-table__name {
+  width: 84px;
   text-align: left;
   font-weight: 700;
   font-size: 12.5px;
@@ -281,8 +284,6 @@ button, input, select {
   position: sticky;
   left: 0;
   z-index: 2;
-  min-width: 96px;
-  max-width: 96px;
   overflow: hidden;
   text-overflow: ellipsis;
   background: var(--color-white);
@@ -293,11 +294,24 @@ thead .minutes-table__name {
   background: var(--color-off-white);
 }
 
-.minutes-table__total {
+.minutes-table__played {
+  width: 58px;
   position: sticky;
-  left: 96px;
+  left: 84px;
   z-index: 2;
-  min-width: 64px;
+  background: var(--color-white);
+}
+
+thead .minutes-table__played {
+  z-index: 3;
+  background: var(--color-off-white);
+}
+
+.minutes-table__total {
+  width: 92px;
+  position: sticky;
+  left: 142px;
+  z-index: 2;
   background: var(--color-white);
   box-shadow: 2px 0 4px rgba(11, 61, 36, 0.06);
 }
@@ -308,7 +322,7 @@ thead .minutes-table__total {
 }
 
 .minutes-table__match {
-  min-width: 64px;
+  width: 64px;
 }
 
 .minutes-table__cell {
@@ -316,6 +330,12 @@ thead .minutes-table__total {
   flex-direction: column;
   align-items: center;
   gap: 2px;
+}
+
+.minutes-table__cell--row {
+  flex-direction: row;
+  justify-content: center;
+  gap: 6px;
 }
 
 .minutes-table__cell-minutes {
