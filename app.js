@@ -602,6 +602,7 @@
     const statAvgMinutesEl = document.getElementById("stat-avg-minutes");
     const emptyHintEl = document.getElementById("dashboard-empty-hint");
     const minutesTableWrap = document.getElementById("minutes-table-wrap");
+    const minutesTableEl = document.getElementById("minutes-table");
     const minutesTableHeadRow = document.getElementById("minutes-table-head");
     const minutesTableBody = document.getElementById("minutes-table-body");
     const minutesTableHintEl = document.getElementById("minutes-table-hint");
@@ -788,6 +789,25 @@
         minutesTableHintEl.hidden = !showMatchColumns;
       }
 
+      // Kolombreedtes (in px) - moeten gelijk zijn aan de waarden in style.css
+      // (.minutes-table__name/__played/__total/__match). Met table-layout:
+      // fixed bepaalt de browser de kolombreedte normaal via de eerste rij,
+      // maar bij lange tegenstandernamen kan de tabel zichzelf toch breder
+      // maken; door hier de totale breedte expliciet in pixels te zetten
+      // blijven alle wedstrijdkolommen gegarandeerd even breed en vast.
+      const NAME_COL_WIDTH = 84;
+      const PLAYED_COL_WIDTH = 58;
+      const TOTAL_COL_WIDTH = 92;
+      const MATCH_COL_WIDTH = 64;
+      let totalTableWidth = NAME_COL_WIDTH;
+      if (showTotals) {
+        totalTableWidth += PLAYED_COL_WIDTH + TOTAL_COL_WIDTH;
+      }
+      if (showMatchColumns) {
+        totalTableWidth += matches.length * MATCH_COL_WIDTH;
+      }
+      minutesTableEl.style.width = totalTableWidth + "px";
+
       const nameTh = document.createElement("th");
       nameTh.className = "minutes-table__name";
       nameTh.textContent = "Speler";
@@ -810,7 +830,9 @@
           const th = document.createElement("th");
           th.className = "minutes-table__match";
           const opponentLine = document.createElement("div");
+          opponentLine.className = "minutes-table__match-opponent";
           opponentLine.textContent = match.opponent || "Nieuw";
+          opponentLine.title = match.opponent || "";
           const dateLine = document.createElement("div");
           dateLine.textContent = formatMatchColumnDate(match.date);
           th.appendChild(opponentLine);
@@ -859,7 +881,7 @@
           startsWrap.className = "minutes-table__starts";
           const startsCountSpan = document.createElement("span");
           startsCountSpan.className = "minutes-table__cell-sub";
-          startsCountSpan.textContent = String(startsCount);
+          startsCountSpan.textContent = startsCount + "×";
           const startsBadge = document.createElement("span");
           startsBadge.className = "badge badge--basis minutes-table__starts-badge";
           startsBadge.textContent = "B";

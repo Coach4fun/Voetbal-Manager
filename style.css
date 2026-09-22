@@ -326,6 +326,13 @@ thead .minutes-table__total {
   width: 64px;
 }
 
+.minutes-table__match-opponent {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
 .minutes-table__cell {
   display: flex;
   flex-direction: column;
@@ -337,7 +344,7 @@ thead .minutes-table__total {
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  gap: 5px;
+  gap: 9px;
 }
 
 .minutes-table__cell-minutes {
@@ -729,16 +736,16 @@ thead .minutes-table__total {
   color: var(--color-gray);
 }
 
-/* Basis/reserve-badges in de speelminutentabel: bewust een stevigere,
-   goed leesbare kleur i.p.v. de subtiele status-tint hierboven. */
+/* Basis/reserve-badges in de speelminutentabel: een duidelijk herkenbare,
+   maar zachte tint zodat ze niet afleiden van de minuten ernaast. */
 .badge--basis {
-  background: var(--color-green);
-  color: var(--color-white);
+  background: rgba(15, 92, 51, 0.16);
+  color: var(--color-green);
 }
 
 .badge--reserve {
-  background: var(--color-blue);
-  color: var(--color-white);
+  background: rgba(47, 111, 237, 0.14);
+  color: var(--color-blue);
 }
 
 .badge--guest {
