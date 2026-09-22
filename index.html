@@ -376,12 +376,17 @@
 
       <div class="card">
         <h3 class="card__title">📤 Exporteren</h3>
-        <p class="card__text">Kies een team en deel óf de wedstrijd met opstelling(en) (JSON), óf een teamoverzicht met alle spelers, speelminuten en basisplekken (JSON of CSV/Excel). De import herkent zelf om welk formaat en type het gaat.</p>
+        <p class="card__text">Kies een team en wedstrijd en deel óf de wedstrijd met opstelling(en) en live-resultaten (JSON, werkt direct het Dashboard van een collega-trainer bij na import), óf een leesbaar wedstrijdresultaat (CSV/Excel) met minuten en basis/reserve per speler, óf een teamoverzicht met alle spelers, speelminuten en basisplekken (JSON of CSV/Excel). De import herkent zelf om welk formaat en type het gaat.</p>
         <div class="field-row">
           <label class="field-label" for="export-team-select">Team</label>
           <select class="field-select" id="export-team-select"></select>
         </div>
-        <button class="btn btn--primary btn--block" id="btn-export-match">Wedstrijd + opstelling exporteren (JSON)</button>
+        <div class="field-row">
+          <label class="field-label" for="export-match-select">Wedstrijd</label>
+          <select class="field-select" id="export-match-select"></select>
+        </div>
+        <button class="btn btn--primary btn--block" id="btn-export-match">Wedstrijd + opstelling + live-resultaten exporteren (JSON)</button>
+        <button class="btn btn--secondary btn--block" id="btn-export-match-results-csv">Wedstrijdresultaten exporteren (CSV/Excel)</button>
         <button class="btn btn--secondary btn--block" id="btn-export-team-overview">Teamoverzicht exporteren (JSON)</button>
         <button class="btn btn--secondary btn--block" id="btn-export-team-overview-csv">Teamoverzicht exporteren (CSV/Excel)</button>
       </div>

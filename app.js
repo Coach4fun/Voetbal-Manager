@@ -3187,6 +3187,41 @@
     return "\uFEFF" + csvBody;
   }
 
+  const MATCH_RESULTS_CSV_HEADER = ["TeamNaam", "Tegenstander", "Datum", "SpelerNaam", "Minuten", "Status"];
+
+  /**
+   * Bouwt de resultaten (minuten en basis/reserve/afwezig-status per
+   * speler) van één wedstrijd - zoals rechtstreeks van de timer
+   * bijgehouden/gecorrigeerd in de Live Tracker - als CSV-tekst, zodat
+   * een collega-trainer dit direct leesbaar (Excel) tot zich kan nemen
+   * zonder de export te hoeven importeren. Begint met een UTF-8 BOM
+   * zodat Excel speciale tekens (bv. ë, ï) correct toont.
+   */
+  function buildMatchResultsCsv(team, match) {
+    const rows = [MATCH_RESULTS_CSV_HEADER];
+    const startingPlayerIds = (match.live && match.live.startingPlayerIds) || [];
+    const absentPlayerIds = match.absentPlayerIds || [];
+    const playerMinutes = match.playerMinutes || {};
+
+    team.players.forEach(function (player) {
+      const isAbsent = absentPlayerIds.indexOf(player.id) !== -1;
+      const status = isAbsent ? "Afwezig" : startingPlayerIds.indexOf(player.id) !== -1 ? "Basis" : "Reserve";
+      rows.push([
+        team.name,
+        match.opponent || "",
+        match.date || "",
+        player.name,
+        isAbsent ? 0 : playerMinutes[player.id] || 0,
+        status
+      ]);
+    });
+
+    const csvBody = rows.map(function (row) {
+      return row.map(csvEscapeField).join(",");
+    }).join("\r\n");
+    return "\uFEFF" + csvBody;
+  }
+
   /**
    * Ontleedt platte CSV-tekst naar een array van rijen (elk een array van
    * celwaarden), met ondersteuning voor tussen aanhalingstekens geplaatste
@@ -3336,7 +3371,9 @@
     const resultEl = document.getElementById("import-result");
     const btnBackup = document.getElementById("btn-backup");
     const exportTeamSelect = document.getElementById("export-team-select");
+    const exportMatchSelect = document.getElementById("export-match-select");
     const btnExportMatch = document.getElementById("btn-export-match");
+    const btnExportMatchResultsCsv = document.getElementById("btn-export-match-results-csv");
     const btnExportTeamOverview = document.getElementById("btn-export-team-overview");
     const btnExportTeamOverviewCsv = document.getElementById("btn-export-team-overview-csv");
 
@@ -3373,6 +3410,7 @@
         return team.id === previousValue;
       });
       exportTeamSelect.value = hasPreviousValue ? previousValue : teamData.activeTeamId;
+      renderExportMatchOptions();
     }
 
     function getSelectedExportTeam() {
@@ -3383,15 +3421,73 @@
       }) || null;
     }
 
+    /**
+     * Vult de wedstrijd-kiezer met alle wedstrijden van het gekozen team,
+     * zodat een specifieke (bv. net afgelopen) wedstrijd geëxporteerd kan
+     * worden - niet per se de actieve wedstrijd uit Opstelling/Live.
+     */
+    function renderExportMatchOptions() {
+      if (!exportMatchSelect) {
+        return;
+      }
+      const team = getSelectedExportTeam();
+      const previousValue = exportMatchSelect.value;
+      exportMatchSelect.innerHTML = "";
+      if (!team) {
+        return;
+      }
+      const bucket = loadMatchStore()[team.id];
+      const matches = bucket ? bucket.matches : [];
+      matches.forEach(function (match) {
+        const option = document.createElement("option");
+        option.value = match.id;
+        option.textContent = getMatchLabel(match);
+        exportMatchSelect.appendChild(option);
+      });
+      const hasPreviousValue = matches.some(function (match) {
+        return match.id === previousValue;
+      });
+      exportMatchSelect.value = hasPreviousValue ? previousValue : bucket ? bucket.activeMatchId : "";
+    }
+
+    function getSelectedExportMatch() {
+      const team = getSelectedExportTeam();
+      if (!team) {
+        return null;
+      }
+      const bucket = loadMatchStore()[team.id];
+      if (!bucket) {
+        return null;
+      }
+      const matchId = exportMatchSelect ? exportMatchSelect.value : bucket.activeMatchId;
+      return getBucketMatch(bucket, matchId);
+    }
+
+    if (exportTeamSelect) {
+      exportTeamSelect.addEventListener("change", renderExportMatchOptions);
+    }
+
     if (btnExportMatch) {
       btnExportMatch.addEventListener("click", function () {
         const team = getSelectedExportTeam();
         if (!team) {
           return;
         }
-        const bucket = loadMatchStore()[team.id];
-        const match = bucket ? getBucketMatch(bucket, bucket.activeMatchId) : null;
+        const match = getSelectedExportMatch();
         downloadJsonPayload(buildMatchExportPayload(team, match), "wedstrijd-opstelling-" + team.name);
+      });
+    }
+
+    if (btnExportMatchResultsCsv) {
+      btnExportMatchResultsCsv.addEventListener("click", function () {
+        const team = getSelectedExportTeam();
+        const match = getSelectedExportMatch();
+        if (!team || !match) {
+          return;
+        }
+        const csv = buildMatchResultsCsv(team, match);
+        const filename = "wedstrijdresultaten-" + team.name + "-" + (match.date || new Date().toISOString().slice(0, 10)) + ".csv";
+        downloadTextFile(csv, filename, "text/csv;charset=utf-8");
       });
     }
 
