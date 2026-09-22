@@ -1945,6 +1945,8 @@
     const subLogEl = document.getElementById("sub-log");
     const subLogEmptyEl = document.getElementById("sub-log-empty");
     const btnEndMatch = document.getElementById("btn-end-match");
+    const liveMinutesGrid = document.getElementById("live-minutes-grid");
+    const liveMinutesHintEl = document.getElementById("live-minutes-hint");
 
     if (!display || !pitchEl || !benchEl) {
       return; // Live Tracker-view niet (meer) aanwezig in de DOM
@@ -2006,6 +2008,119 @@
         currentMatch.playerMinutes = {};
         persistMatchStore();
       }
+      if (typeof currentMatch.ended !== "boolean") {
+        currentMatch.ended = false;
+        persistMatchStore();
+      }
+    }
+
+    /**
+     * Bouwt (of verbergt) het correctie-overzicht onder het veld waarmee de
+     * trainer, ná het beëindigen van de wedstrijd, de uiteindelijke minuten
+     * en basis/reserve-status per speler kan controleren en zo nodig
+     * handmatig aanpassen. Vóór het beëindigen blijft dit overzicht verborgen,
+     * zodat het niet per ongeluk de nog lopende automatische registratie
+     * kan verstoren ("vervuilen").
+     */
+    function renderLiveMinutesCorrection() {
+      if (!liveMinutesGrid) {
+        return;
+      }
+
+      const ended = !!currentMatch.ended;
+      if (liveMinutesHintEl) {
+        liveMinutesHintEl.textContent = ended
+          ? "Controleer en corrigeer zo nodig de minuten en basis/reserve per speler."
+          : "Dit overzicht wordt ingevuld zodra je de wedstrijd beëindigt (🏁). Je kunt de minuten en basis/reserve daarna altijd handmatig aanpassen.";
+      }
+      liveMinutesGrid.hidden = !ended;
+      liveMinutesGrid.innerHTML = "";
+
+      if (!ended) {
+        return;
+      }
+
+      currentMatch.playerMinutes = currentMatch.playerMinutes || {};
+      currentMatch.live.startingPlayerIds = currentMatch.live.startingPlayerIds || [];
+
+      const availablePlayers = currentTeam.players.filter(function (player) {
+        return currentMatch.absentPlayerIds.indexOf(player.id) === -1;
+      });
+
+      availablePlayers.forEach(function (player) {
+        const row = document.createElement("div");
+        row.className = "live-minutes-row";
+
+        const nameEl = document.createElement("span");
+        nameEl.className = "live-minutes-row__name";
+        nameEl.textContent = player.name;
+        nameEl.title = player.name;
+        row.appendChild(nameEl);
+
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "0";
+        input.inputMode = "numeric";
+        input.className = "live-minutes-row__input";
+        input.value = String(currentMatch.playerMinutes[player.id] || 0);
+        input.setAttribute("aria-label", "Minuten voor " + player.name);
+        input.addEventListener("change", function () {
+          let value = parseInt(input.value, 10);
+          if (isNaN(value) || value < 0) {
+            value = 0;
+          }
+          input.value = String(value);
+          currentMatch.playerMinutes[player.id] = value;
+          persistMatchStore();
+        });
+        row.appendChild(input);
+
+        const toggle = document.createElement("div");
+        toggle.className = "live-minutes-row__toggle";
+        toggle.setAttribute("role", "group");
+        toggle.setAttribute("aria-label", "Basis of reserve voor " + player.name);
+
+        const basisBtn = document.createElement("button");
+        basisBtn.type = "button";
+        basisBtn.className = "badge badge--basis live-minutes-row__toggle-btn";
+        basisBtn.textContent = "B";
+        basisBtn.title = "Basis";
+
+        const reserveBtn = document.createElement("button");
+        reserveBtn.type = "button";
+        reserveBtn.className = "badge badge--reserve live-minutes-row__toggle-btn";
+        reserveBtn.textContent = "R";
+        reserveBtn.title = "Reserve";
+
+        function updateToggleState() {
+          const isStarter = currentMatch.live.startingPlayerIds.indexOf(player.id) !== -1;
+          basisBtn.classList.toggle("is-active", isStarter);
+          reserveBtn.classList.toggle("is-active", !isStarter);
+        }
+
+        basisBtn.addEventListener("click", function () {
+          if (currentMatch.live.startingPlayerIds.indexOf(player.id) === -1) {
+            currentMatch.live.startingPlayerIds.push(player.id);
+            persistMatchStore();
+          }
+          updateToggleState();
+        });
+
+        reserveBtn.addEventListener("click", function () {
+          currentMatch.live.startingPlayerIds = currentMatch.live.startingPlayerIds.filter(function (id) {
+            return id !== player.id;
+          });
+          persistMatchStore();
+          updateToggleState();
+        });
+
+        updateToggleState();
+        toggle.appendChild(basisBtn);
+        toggle.appendChild(reserveBtn);
+        row.appendChild(toggle);
+
+        liveMinutesGrid.appendChild(row);
+      });
     }
 
     function clearTickInterval() {
@@ -2502,6 +2617,12 @@
         return;
       }
       currentMatch.live.running = true;
+      if (currentMatch.ended) {
+        // De trainer hervat de wedstrijd na het beëindigen: het
+        // correctie-overzicht verdwijnt weer totdat opnieuw beëindigd wordt.
+        currentMatch.ended = false;
+        renderLiveMinutesCorrection();
+      }
       persistMatchStore();
       renderTimer();
       tickIntervalId = window.setInterval(tick, 1000);
@@ -2552,6 +2673,9 @@
         return;
       }
       pauseTimer();
+      currentMatch.ended = true;
+      persistMatchStore();
+      renderLiveMinutesCorrection();
     });
 
     // --- Ververs bij wisselen van team of terugkeer naar deze view ---
@@ -2614,6 +2738,7 @@
       renderBench();
       renderSubLog();
       renderLineupPicker();
+      renderLiveMinutesCorrection();
 
       if (currentMatch.live.running) {
         startTimer();

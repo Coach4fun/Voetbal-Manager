@@ -378,6 +378,67 @@ thead .minutes-table__total {
   padding: 1px 5px;
 }
 
+/* ---------- Live Tracker: minuten/basis-reserve corrigeren ---------- */
+
+.live-minutes-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+  margin: 6px 0 14px 0;
+}
+
+.live-minutes-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--color-white);
+  border-radius: var(--radius-s);
+  padding: 5px 7px;
+  box-shadow: var(--shadow-card);
+}
+
+.live-minutes-row__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-dark-green);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-minutes-row__input {
+  width: 34px;
+  min-height: 26px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-s);
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-dark-green);
+  padding: 0 2px;
+  flex-shrink: 0;
+  background: var(--color-off-white);
+}
+
+.live-minutes-row__toggle {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.live-minutes-row__toggle-btn {
+  border: none;
+  cursor: pointer;
+  opacity: 0.3;
+  transition: opacity 0.15s ease;
+}
+
+.live-minutes-row__toggle-btn.is-active {
+  opacity: 1;
+}
+
 /* ---------- Upcoming match card ---------- */
 
 .upcoming-card {
