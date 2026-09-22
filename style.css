@@ -14,6 +14,7 @@
   --color-gray: #7a8a82;
   --color-danger: #d9483e;
   --color-warning: #e08a1e;
+  --color-blue: #2f6fed;
   --color-line: #e1e9e4;
 
   --radius-s: 8px;
@@ -335,7 +336,8 @@ thead .minutes-table__total {
 .minutes-table__cell--row {
   flex-direction: row;
   justify-content: center;
-  gap: 6px;
+  align-items: center;
+  gap: 5px;
 }
 
 .minutes-table__cell-minutes {
@@ -345,13 +347,28 @@ thead .minutes-table__total {
 }
 
 .minutes-table__cell-sub {
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 800;
   color: var(--color-gray);
 }
 
 .minutes-table__cell-empty {
   color: var(--color-line);
+}
+
+.minutes-table__starts {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.minutes-table .badge {
+  padding: 1px 6px;
+  font-size: 9px;
+}
+
+.minutes-table__starts-badge {
+  padding: 1px 5px;
 }
 
 /* ---------- Upcoming match card ---------- */
@@ -710,6 +727,18 @@ thead .minutes-table__total {
 .badge--afwezig {
   background: rgba(122, 138, 130, 0.18);
   color: var(--color-gray);
+}
+
+/* Basis/reserve-badges in de speelminutentabel: bewust een stevigere,
+   goed leesbare kleur i.p.v. de subtiele status-tint hierboven. */
+.badge--basis {
+  background: var(--color-green);
+  color: var(--color-white);
+}
+
+.badge--reserve {
+  background: var(--color-blue);
+  color: var(--color-white);
 }
 
 .badge--guest {

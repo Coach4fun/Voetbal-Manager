@@ -855,11 +855,19 @@
           const minutesSpan = document.createElement("span");
           minutesSpan.className = "minutes-table__cell-minutes";
           minutesSpan.textContent = (player.seasonMinutes || 0) + "'";
-          const subSpan = document.createElement("span");
-          subSpan.className = "minutes-table__cell-sub";
-          subSpan.textContent = startsCount + "x basis";
+          const startsWrap = document.createElement("span");
+          startsWrap.className = "minutes-table__starts";
+          const startsCountSpan = document.createElement("span");
+          startsCountSpan.className = "minutes-table__cell-sub";
+          startsCountSpan.textContent = String(startsCount);
+          const startsBadge = document.createElement("span");
+          startsBadge.className = "badge badge--basis minutes-table__starts-badge";
+          startsBadge.textContent = "B";
+          startsBadge.title = "Basisplaatsen";
+          startsWrap.appendChild(startsCountSpan);
+          startsWrap.appendChild(startsBadge);
           cell.appendChild(minutesSpan);
-          cell.appendChild(subSpan);
+          cell.appendChild(startsWrap);
           totalTd.appendChild(cell);
           tr.appendChild(totalTd);
         }
@@ -872,7 +880,7 @@
             const isAbsent = (match.absentPlayerIds || []).indexOf(player.id) !== -1;
 
             const cell = document.createElement("div");
-            cell.className = "minutes-table__cell";
+            cell.className = "minutes-table__cell minutes-table__cell--row";
 
             if (showMatchMinutes) {
               const minutesSpan = document.createElement("span");
@@ -893,13 +901,16 @@
                 const badge = document.createElement("span");
                 if (isAbsent) {
                   badge.className = "badge badge--afwezig";
-                  badge.textContent = "Afwezig";
+                  badge.textContent = "A";
+                  badge.title = "Afwezig";
                 } else if (isStarter) {
-                  badge.className = "badge badge--fit";
-                  badge.textContent = "Basis";
+                  badge.className = "badge badge--basis";
+                  badge.textContent = "B";
+                  badge.title = "Basis";
                 } else {
-                  badge.className = "badge badge--afwezig";
-                  badge.textContent = "Reserve";
+                  badge.className = "badge badge--reserve";
+                  badge.textContent = "R";
+                  badge.title = "Reserve";
                 }
                 cell.appendChild(badge);
               } else if (!showMatchMinutes) {
