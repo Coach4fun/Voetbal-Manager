@@ -2329,10 +2329,11 @@
         ghost.remove();
         sourceEl.classList.remove("is-dragging");
 
-        // Bewaar de opstelling van vóór deze sleepactie als referentie, zodat
-        // na het verwerken zichtbaar is wie er is ingevallen (rood) of van
-        // plek is gewisseld (oranje) — net als in de module Opstelling.
-        currentMatch.live.referencePositions = JSON.parse(JSON.stringify(currentMatch.live.positions));
+        // Let op: referencePositions wordt hier bewust NIET bijgewerkt. Die
+        // blijft staan vanaf het laatst toegepaste blok/de wedstrijdstart,
+        // zodat alle sindsdien ingevallen (rood) of verplaatste (oranje)
+        // spelers zichtbaar blijven — ook na meerdere opeenvolgende
+        // wissels — net als in de module Opstelling.
 
         const pitchRect = pitchEl.getBoundingClientRect();
         const droppedInPitch =
@@ -3430,6 +3431,41 @@
     scheduleResize();
   }
 
+  /**
+   * Zorgt dat de kleine "⚙️"-popovers (kolommen kiezen, teamgegevens, ...)
+   * altijd volledig binnen het scherm blijven. Ze zijn standaard rechts
+   * uitgelijnd op hun knop, maar op smalle telefoonschermen kan dat paneel
+   * dan links buiten beeld vallen. Bij het openen wordt de positie daarom
+   * gecontroleerd en zo nodig bijgesteld.
+   */
+  function initPopoverPositioning() {
+    const EDGE_MARGIN = 8;
+
+    document.querySelectorAll(".team-popover").forEach(function (popover) {
+      const panel = popover.querySelector(".team-popover__panel");
+      if (!panel) {
+        return;
+      }
+
+      popover.addEventListener("toggle", function () {
+        // Begin altijd bij de standaardpositie (rechts uitgelijnd op de knop).
+        panel.style.right = "0";
+        panel.style.left = "";
+
+        if (!popover.open) {
+          return;
+        }
+
+        const panelRect = panel.getBoundingClientRect();
+        if (panelRect.left < EDGE_MARGIN) {
+          const popoverRect = popover.getBoundingClientRect();
+          panel.style.right = "auto";
+          panel.style.left = (EDGE_MARGIN - popoverRect.left) + "px";
+        }
+      });
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     initNavigation();
     initDashboard();
@@ -3438,6 +3474,7 @@
     initLiveTracker();
     initDataImport();
     initResponsivePitchSizing();
+    initPopoverPositioning();
     initServiceWorker();
   });
 })();

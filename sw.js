@@ -15,7 +15,7 @@
         app.js).
    ========================================================= */
 
-const CACHE_NAME = "vtm-cache-v8";
+const CACHE_NAME = "vtm-cache-v11";
 
 const APP_SHELL_FILES = [
   "./",
