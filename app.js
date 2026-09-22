@@ -2901,6 +2901,7 @@
     const livePitchEl = document.getElementById("live-pitch");
     const pitchEls = [pitchEl, livePitchEl].filter(Boolean);
     const bottomNav = document.getElementById("bottom-nav");
+    const topbar = document.querySelector(".app-topbar");
 
     if (pitchEls.length === 0) {
       return;
@@ -2914,6 +2915,15 @@
     // Berekent de ideale breedte voor een veld-element op basis van de
     // ruimte die er op dit moment voor beschikbaar is. Geeft null terug
     // als het element in een niet-actieve (display:none) view zit.
+    //
+    // De beschikbare hoogte wordt berekend tussen de (sticky) topbar en
+    // de (fixed) onderste navigatiebalk - dus NIET op basis van de
+    // huidige scrollpositie van het veld zelf. Beide zijn altijd op
+    // dezelfde plek in het viewport te vinden, ongeacht hoever de
+    // gebruiker gescrold heeft. Zo blijft het veld altijd even groot
+    // (net zo groot als wanneer het veld mooi centraal/boven in beeld
+    // staat), in plaats van kleiner te worden afhankelijk van de
+    // toevallige scrollpositie op het moment van herberekenen.
     function computeCandidateWidth(pitchEl) {
       if (!pitchEl || pitchEl.offsetParent === null) {
         return null;
@@ -2928,8 +2938,8 @@
         : pitchEl.clientWidth;
 
       const navTop = bottomNav ? bottomNav.getBoundingClientRect().top : window.innerHeight;
-      const pitchTop = pitchEl.getBoundingClientRect().top;
-      const availableHeight = navTop - pitchTop - BOTTOM_MARGIN;
+      const topbarBottom = topbar ? topbar.getBoundingClientRect().bottom : 0;
+      const availableHeight = navTop - topbarBottom - BOTTOM_MARGIN;
 
       const widthFromHeight = availableHeight * PITCH_ASPECT;
       return Math.max(MIN_PITCH_WIDTH, Math.min(availableWidth, widthFromHeight));
