@@ -658,7 +658,7 @@
       }
     }
 
-    function sortPlayers(players) {
+    function sortPlayers(players, matches) {
       const sorted = players.slice();
       if (sortMode === "alpha") {
         sorted.sort(function (a, b) {
@@ -666,11 +666,11 @@
         });
       } else if (sortMode === "minutes-asc") {
         sorted.sort(function (a, b) {
-          return (a.seasonMinutes || 0) - (b.seasonMinutes || 0);
+          return getTotalPlayedMinutes(matches, a.id) - getTotalPlayedMinutes(matches, b.id);
         });
       } else {
         sorted.sort(function (a, b) {
-          return (b.seasonMinutes || 0) - (a.seasonMinutes || 0);
+          return getTotalPlayedMinutes(matches, b.id) - getTotalPlayedMinutes(matches, a.id);
         });
       }
       return sorted;
@@ -772,6 +772,19 @@
     }
 
     /**
+     * Telt de minuten van een speler op over alle wedstrijden heen (het
+     * "Totaal" in het Dashboard). Dit is de optelsom van de per-wedstrijd
+     * minuten (die live worden bijgehouden en achteraf te corrigeren zijn),
+     * in plaats van een los bijgehouden seizoenstotaal dat uit de pas kan
+     * gaan lopen zodra minuten van een wedstrijd worden gecorrigeerd.
+     */
+    function getTotalPlayedMinutes(matches, playerId) {
+      return matches.reduce(function (sum, match) {
+        return sum + ((match.playerMinutes && match.playerMinutes[playerId]) || 0);
+      }, 0);
+    }
+
+    /**
      * Bouwt de kolomkoppen en -rijen van de speelminutentabel op, op basis
      * van de huidige kolomvoorkeuren (totalen / minuten per wedstrijd /
      * basisplaats per wedstrijd) en de wedstrijden van het huidige team.
@@ -841,7 +854,7 @@
         });
       }
 
-      const sortedPlayers = sortPlayers(team.players);
+      const sortedPlayers = sortPlayers(team.players, matches);
 
       sortedPlayers.forEach(function (player) {
         const tr = document.createElement("tr");
@@ -876,7 +889,7 @@
           cell.className = "minutes-table__cell minutes-table__cell--row";
           const minutesSpan = document.createElement("span");
           minutesSpan.className = "minutes-table__cell-minutes";
-          minutesSpan.textContent = (player.seasonMinutes || 0) + "'";
+          minutesSpan.textContent = getTotalPlayedMinutes(matches, player.id) + "'";
           const startsWrap = document.createElement("span");
           startsWrap.className = "minutes-table__starts";
           const startsCountSpan = document.createElement("span");
@@ -965,11 +978,12 @@
       }
 
       const players = team.players;
+      const matches = getTeamMatches(team);
       const guestCount = players.filter(function (p) {
         return p.isGuest;
       }).length;
       const totalMinutes = players.reduce(function (sum, p) {
-        return sum + (p.seasonMinutes || 0);
+        return sum + getTotalPlayedMinutes(matches, p.id);
       }, 0);
       const avgMinutes = players.length > 0 ? Math.round(totalMinutes / players.length) : 0;
 
@@ -984,7 +998,7 @@
       } else {
         emptyHintEl.hidden = true;
         minutesTableWrap.hidden = false;
-        renderMinutesTable(team, getTeamMatches(team));
+        renderMinutesTable(team, matches);
       }
 
       renderUpcomingMatch(team);
@@ -2630,6 +2644,25 @@
       }
     }
 
+    // Tegenhanger van accrueMinuteForOnFieldPlayers: trekt een minuut af
+    // wanneer de trainer de timer handmatig terugzet, zodat spelersminuten
+    // altijd de timer volgen (ook bij handmatige +1'/-1' correcties).
+    function deaccrueMinuteForOnFieldPlayers() {
+      let changed = false;
+      currentMatch.playerMinutes = currentMatch.playerMinutes || {};
+      Object.keys(currentMatch.live.positions).forEach(function (playerId) {
+        const player = findPlayer(playerId);
+        if (player) {
+          player.seasonMinutes = Math.max(0, (player.seasonMinutes || 0) - 1);
+          currentMatch.playerMinutes[playerId] = Math.max(0, (currentMatch.playerMinutes[playerId] || 0) - 1);
+          changed = true;
+        }
+      });
+      if (changed) {
+        persistTeamData();
+      }
+    }
+
     // --- Alarm 5 minuten voor een gepland wisselmoment ---
 
     let audioCtx = null;
@@ -2872,13 +2905,22 @@
     });
 
     btnMinus.addEventListener("click", function () {
+      const hadFullMinute = currentMatch.live.elapsedSeconds >= 60;
       currentMatch.live.elapsedSeconds = Math.max(0, currentMatch.live.elapsedSeconds - 60);
+      if (hadFullMinute) {
+        deaccrueMinuteForOnFieldPlayers();
+        renderPitch();
+        renderBench();
+      }
       persistMatchStore();
       renderTimer();
     });
 
     btnPlus.addEventListener("click", function () {
       currentMatch.live.elapsedSeconds += 60;
+      accrueMinuteForOnFieldPlayers();
+      renderPitch();
+      renderBench();
       persistMatchStore();
       renderTimer();
     });
