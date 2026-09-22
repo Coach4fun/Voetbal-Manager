@@ -62,14 +62,42 @@
 
       <div class="list-header">
         <h3 class="section-heading">Speelminuten per speler</h3>
-        <select class="field-select field-select--compact" id="dashboard-sort-select">
-          <option value="minutes-desc">Minuten (hoog-laag)</option>
-          <option value="minutes-asc">Minuten (laag-hoog)</option>
-          <option value="alpha">Alfabetisch</option>
-        </select>
+        <div class="list-header__actions">
+          <select class="field-select field-select--compact" id="dashboard-sort-select">
+            <option value="minutes-desc">Minuten (hoog-laag)</option>
+            <option value="minutes-asc">Minuten (laag-hoog)</option>
+            <option value="alpha">Alfabetisch</option>
+          </select>
+          <details class="team-popover" id="minutes-columns-popover">
+            <summary class="btn btn--secondary btn--icon-compact team-popover__trigger" title="Kolommen kiezen" aria-label="Kolommen kiezen">⚙️</summary>
+            <div class="team-popover__panel">
+              <p class="field-label">Toon per speler</p>
+              <label class="checkbox-row">
+                <input type="checkbox" id="col-totals" checked>
+                Totalen (minuten + basisplaatsen)
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" id="col-match-minutes" checked>
+                Minuten per wedstrijd
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" id="col-match-starter" checked>
+                Basisplaats per wedstrijd
+              </label>
+            </div>
+          </details>
+        </div>
       </div>
       <p class="hint-text" id="dashboard-empty-hint" hidden>Nog geen spelers in dit team.</p>
-      <ul class="player-minutes-list" id="player-minutes-list"></ul>
+      <p class="hint-text hint-text--compact-hide" id="minutes-table-hint">Schuif naar rechts voor de wedstrijden. Naam en totalen blijven zichtbaar.</p>
+      <div class="minutes-table-wrap" id="minutes-table-wrap">
+        <table class="minutes-table" id="minutes-table">
+          <thead>
+            <tr id="minutes-table-head"></tr>
+          </thead>
+          <tbody id="minutes-table-body"></tbody>
+        </table>
+      </div>
 
       <h3 class="section-heading">Aankomende wedstrijd</h3>
       <div class="upcoming-card">

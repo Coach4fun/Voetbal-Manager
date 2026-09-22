@@ -587,9 +587,11 @@
 
   /**
    * Initialiseert het Dashboard-scherm: teamkeuze, statistiekkaarten,
-   * de speelminutenlijst per speler en de eerstvolgende wedstrijd.
+   * de speelminutentabel per speler (met per-wedstrijd kolommen) en de
+   * eerstvolgende wedstrijd.
    */
   const DASHBOARD_SORT_KEY = "vtm:dashboardSort";
+  const DASHBOARD_COLUMNS_KEY = "vtm:dashboardColumns";
 
   function initDashboard() {
     const teamSelect = document.getElementById("dashboard-team-select");
@@ -599,11 +601,17 @@
     const statTotalMinutesEl = document.getElementById("stat-total-minutes");
     const statAvgMinutesEl = document.getElementById("stat-avg-minutes");
     const emptyHintEl = document.getElementById("dashboard-empty-hint");
-    const minutesListEl = document.getElementById("player-minutes-list");
+    const minutesTableWrap = document.getElementById("minutes-table-wrap");
+    const minutesTableHeadRow = document.getElementById("minutes-table-head");
+    const minutesTableBody = document.getElementById("minutes-table-body");
+    const minutesTableHintEl = document.getElementById("minutes-table-hint");
+    const colTotalsCheckbox = document.getElementById("col-totals");
+    const colMatchMinutesCheckbox = document.getElementById("col-match-minutes");
+    const colMatchStarterCheckbox = document.getElementById("col-match-starter");
     const upcomingTeamsEl = document.getElementById("upcoming-teams");
     const upcomingMetaEl = document.getElementById("upcoming-meta");
 
-    if (!teamSelect || !minutesListEl) {
+    if (!teamSelect || !minutesTableBody) {
       return; // Dashboard-view niet (meer) aanwezig in de DOM
     }
 
@@ -611,6 +619,42 @@
     let sortMode = localStorage.getItem(DASHBOARD_SORT_KEY) || "minutes-desc";
     if (sortSelect) {
       sortSelect.value = sortMode;
+    }
+
+    /**
+     * Laadt de kolomvoorkeuren (welke info de trainer wil zien) uit
+     * localStorage, met alles standaard aan (huidige/oude gedrag).
+     */
+    function loadColumnPrefs() {
+      const defaults = { totals: true, matchMinutes: true, matchStarter: true };
+      try {
+        const raw = localStorage.getItem(DASHBOARD_COLUMNS_KEY);
+        if (raw) {
+          return Object.assign(defaults, JSON.parse(raw));
+        }
+      } catch (e) {
+        /* negeren, val terug op standaard */
+      }
+      return defaults;
+    }
+
+    let columnPrefs = loadColumnPrefs();
+    if (colTotalsCheckbox) {
+      colTotalsCheckbox.checked = columnPrefs.totals;
+    }
+    if (colMatchMinutesCheckbox) {
+      colMatchMinutesCheckbox.checked = columnPrefs.matchMinutes;
+    }
+    if (colMatchStarterCheckbox) {
+      colMatchStarterCheckbox.checked = columnPrefs.matchStarter;
+    }
+
+    function persistColumnPrefs() {
+      try {
+        localStorage.setItem(DASHBOARD_COLUMNS_KEY, JSON.stringify(columnPrefs));
+      } catch (e) {
+        /* negeren */
+      }
     }
 
     function sortPlayers(players) {
@@ -656,6 +700,17 @@
       return parsed.toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" });
     }
 
+    function formatMatchColumnDate(dateStr) {
+      if (!dateStr) {
+        return "";
+      }
+      const parsed = new Date(dateStr + "T00:00:00");
+      if (isNaN(parsed.getTime())) {
+        return "";
+      }
+      return parsed.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+    }
+
     function renderUpcomingMatch(team) {
       const matchStore = loadMatchStore();
       const bucket = ensureTeamMatchBucket(matchStore, team);
@@ -674,6 +729,147 @@
         parts.push(match.time);
       }
       upcomingMetaEl.textContent = parts.length > 0 ? parts.join(" · ") : "Datum/tijd nog niet ingevuld";
+    }
+
+    /**
+     * Haalt alle wedstrijden van het opgegeven team op (in aanmaakvolgorde,
+     * gelijk aan de wedstrijd-kiezers in Opstelling/Live Tracker).
+     */
+    function getTeamMatches(team) {
+      const matchStore = loadMatchStore();
+      const bucket = matchStore[team.id];
+      return bucket && Array.isArray(bucket.matches) ? bucket.matches : [];
+    }
+
+    /**
+     * Bouwt de kolomkoppen en -rijen van de speelminutentabel op, op basis
+     * van de huidige kolomvoorkeuren (totalen / minuten per wedstrijd /
+     * basisplaats per wedstrijd) en de wedstrijden van het huidige team.
+     */
+    function renderMinutesTable(team, matches) {
+      minutesTableHeadRow.innerHTML = "";
+      minutesTableBody.innerHTML = "";
+
+      const showTotals = columnPrefs.totals;
+      const showMatchMinutes = columnPrefs.matchMinutes;
+      const showMatchStarter = columnPrefs.matchStarter;
+      const showMatchColumns = (showMatchMinutes || showMatchStarter) && matches.length > 0;
+
+      if (minutesTableHintEl) {
+        minutesTableHintEl.hidden = !showMatchColumns;
+      }
+
+      const nameTh = document.createElement("th");
+      nameTh.className = "minutes-table__name";
+      nameTh.textContent = "Speler";
+      minutesTableHeadRow.appendChild(nameTh);
+
+      if (showTotals) {
+        const totalTh = document.createElement("th");
+        totalTh.className = "minutes-table__total";
+        totalTh.textContent = "Totaal";
+        minutesTableHeadRow.appendChild(totalTh);
+      }
+
+      if (showMatchColumns) {
+        matches.forEach(function (match) {
+          const th = document.createElement("th");
+          th.className = "minutes-table__match";
+          const opponentLine = document.createElement("div");
+          opponentLine.textContent = match.opponent || "Nieuw";
+          const dateLine = document.createElement("div");
+          dateLine.textContent = formatMatchColumnDate(match.date);
+          th.appendChild(opponentLine);
+          th.appendChild(dateLine);
+          minutesTableHeadRow.appendChild(th);
+        });
+      }
+
+      const sortedPlayers = sortPlayers(team.players);
+
+      sortedPlayers.forEach(function (player) {
+        const tr = document.createElement("tr");
+
+        const nameTd = document.createElement("td");
+        nameTd.className = "minutes-table__name";
+        nameTd.textContent = player.name;
+        nameTd.title = player.name;
+        tr.appendChild(nameTd);
+
+        if (showTotals) {
+          const totalTd = document.createElement("td");
+          totalTd.className = "minutes-table__total";
+          const startsCount = matches.filter(function (match) {
+            return match.live && Array.isArray(match.live.startingPlayerIds) && match.live.startingPlayerIds.indexOf(player.id) !== -1;
+          }).length;
+
+          const cell = document.createElement("div");
+          cell.className = "minutes-table__cell";
+          const minutesSpan = document.createElement("span");
+          minutesSpan.className = "minutes-table__cell-minutes";
+          minutesSpan.textContent = (player.seasonMinutes || 0) + "'";
+          const subSpan = document.createElement("span");
+          subSpan.className = "minutes-table__cell-sub";
+          subSpan.textContent = startsCount + "x basis";
+          cell.appendChild(minutesSpan);
+          cell.appendChild(subSpan);
+          totalTd.appendChild(cell);
+          tr.appendChild(totalTd);
+        }
+
+        if (showMatchColumns) {
+          matches.forEach(function (match) {
+            const td = document.createElement("td");
+            td.className = "minutes-table__match";
+            const hasLiveData = !!(match.live && match.live.positions);
+            const isAbsent = (match.absentPlayerIds || []).indexOf(player.id) !== -1;
+
+            const cell = document.createElement("div");
+            cell.className = "minutes-table__cell";
+
+            if (showMatchMinutes) {
+              const minutesSpan = document.createElement("span");
+              if (hasLiveData) {
+                minutesSpan.className = "minutes-table__cell-minutes";
+                const minutes = (match.playerMinutes && match.playerMinutes[player.id]) || 0;
+                minutesSpan.textContent = minutes + "'";
+              } else {
+                minutesSpan.className = "minutes-table__cell-minutes minutes-table__cell-empty";
+                minutesSpan.textContent = "–";
+              }
+              cell.appendChild(minutesSpan);
+            }
+
+            if (showMatchStarter) {
+              if (hasLiveData) {
+                const isStarter = Array.isArray(match.live.startingPlayerIds) && match.live.startingPlayerIds.indexOf(player.id) !== -1;
+                const badge = document.createElement("span");
+                if (isAbsent) {
+                  badge.className = "badge badge--afwezig";
+                  badge.textContent = "Afwezig";
+                } else if (isStarter) {
+                  badge.className = "badge badge--fit";
+                  badge.textContent = "Basis";
+                } else {
+                  badge.className = "badge badge--afwezig";
+                  badge.textContent = "Reserve";
+                }
+                cell.appendChild(badge);
+              } else if (!showMatchMinutes) {
+                const emptySpan = document.createElement("span");
+                emptySpan.className = "minutes-table__cell-empty";
+                emptySpan.textContent = "–";
+                cell.appendChild(emptySpan);
+              }
+            }
+
+            td.appendChild(cell);
+            tr.appendChild(td);
+          });
+        }
+
+        minutesTableBody.appendChild(tr);
+      });
     }
 
     function render() {
@@ -702,43 +898,13 @@
       statTotalMinutesEl.textContent = totalMinutes + "'";
       statAvgMinutesEl.textContent = avgMinutes + "'";
 
-      minutesListEl.innerHTML = "";
       if (players.length === 0) {
         emptyHintEl.hidden = false;
+        minutesTableWrap.hidden = true;
       } else {
         emptyHintEl.hidden = true;
-        const maxMinutes = players.reduce(function (max, p) {
-          return Math.max(max, p.seasonMinutes || 0);
-        }, 0);
-
-        const sortedPlayers = sortPlayers(players);
-
-        sortedPlayers.forEach(function (player) {
-          const minutes = player.seasonMinutes || 0;
-          const pct = maxMinutes > 0 ? Math.round((minutes / maxMinutes) * 100) : 0;
-
-          const li = document.createElement("li");
-          li.className = "player-minutes-item";
-
-          const nameEl = document.createElement("span");
-          nameEl.className = "player-minutes-item__name";
-          nameEl.textContent = player.name;
-
-          const barWrap = document.createElement("div");
-          barWrap.className = "player-minutes-item__bar";
-          const barFill = document.createElement("span");
-          barFill.style.width = pct + "%";
-          barWrap.appendChild(barFill);
-
-          const valueEl = document.createElement("span");
-          valueEl.className = "player-minutes-item__value";
-          valueEl.textContent = minutes + "'";
-
-          li.appendChild(nameEl);
-          li.appendChild(barWrap);
-          li.appendChild(valueEl);
-          minutesListEl.appendChild(li);
-        });
+        minutesTableWrap.hidden = false;
+        renderMinutesTable(team, getTeamMatches(team));
       }
 
       renderUpcomingMatch(team);
@@ -756,6 +922,21 @@
         render();
       });
     }
+
+    [colTotalsCheckbox, colMatchMinutesCheckbox, colMatchStarterCheckbox].forEach(function (checkbox) {
+      if (!checkbox) {
+        return;
+      }
+      checkbox.addEventListener("change", function () {
+        columnPrefs = {
+          totals: colTotalsCheckbox ? colTotalsCheckbox.checked : true,
+          matchMinutes: colMatchMinutesCheckbox ? colMatchMinutesCheckbox.checked : true,
+          matchStarter: colMatchStarterCheckbox ? colMatchStarterCheckbox.checked : true
+        };
+        persistColumnPrefs();
+        render();
+      });
+    });
 
     document.addEventListener("vtm:view-activated", function (event) {
       if (event.detail && event.detail.view === "dashboard") {
@@ -1720,6 +1901,10 @@
           running: false,
           positions: JSON.parse(JSON.stringify(baseBlock.positions || {})),
           referencePositions: JSON.parse(JSON.stringify(baseBlock.positions || {})),
+          // Bewaart wie bij de aftrap in de basisopstelling stond, zodat het
+          // Dashboard achteraf per wedstrijd "Basis" vs "Reserve" kan tonen -
+          // onafhankelijk van latere live wissels die de posities wijzigen.
+          startingPlayerIds: Object.keys(baseBlock.positions || {}),
           subLog: []
         };
         persistMatchStore();
@@ -1727,6 +1912,18 @@
         // Oudere, al opgeslagen wedstrijden hebben nog geen referentiepunt:
         // start zonder kleurcodering totdat de eerstvolgende wissel gebeurt.
         currentMatch.live.referencePositions = JSON.parse(JSON.stringify(currentMatch.live.positions));
+        persistMatchStore();
+      }
+
+      // Migratie: wedstrijden die live zijn getrackt vóórdat startingPlayerIds
+      // bestond, krijgen hier alsnog een (best mogelijke) invulling.
+      if (!currentMatch.live.startingPlayerIds) {
+        const baseBlock = currentMatch.lineupBlocks[0];
+        currentMatch.live.startingPlayerIds = Object.keys((baseBlock && baseBlock.positions) || {});
+        persistMatchStore();
+      }
+      if (!currentMatch.playerMinutes) {
+        currentMatch.playerMinutes = {};
         persistMatchStore();
       }
     }
@@ -2009,10 +2206,14 @@
 
     function accrueMinuteForOnFieldPlayers() {
       let changed = false;
+      currentMatch.playerMinutes = currentMatch.playerMinutes || {};
       Object.keys(currentMatch.live.positions).forEach(function (playerId) {
         const player = findPlayer(playerId);
         if (player) {
           player.seasonMinutes = (player.seasonMinutes || 0) + 1;
+          // Naast het seizoenstotaal ook per-wedstrijd bijhouden, zodat het
+          // Dashboard een kolom "minuten per wedstrijd" kan tonen.
+          currentMatch.playerMinutes[playerId] = (currentMatch.playerMinutes[playerId] || 0) + 1;
           changed = true;
         }
       });
