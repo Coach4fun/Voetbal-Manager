@@ -1248,6 +1248,32 @@
     return Math.min(max, Math.max(min, value));
   }
 
+  // Beweging (in schermpixels) die een sleepactie moet overschrijden voordat
+  // het als "slepen" telt in plaats van als een simpele tik/klik.
+  const DRAG_MOVE_THRESHOLD_PX = 8;
+
+  // Minimale verschuiving (in procentpunten van het veld) die een positie-
+  // wijziging moet hebben om als een "echte" verplaatsing te gelden (bijv.
+  // van centrale verdediger naar rechterverdediger). Kleine, onbedoelde
+  // aanpassingen tijdens het slepen veranderen de kleurcodering dan niet.
+  const SIGNIFICANT_POSITION_CHANGE_PCT = 8;
+
+  /**
+   * Berekent de eerstvolgende kleur in de handmatige kleurcyclus waar de
+   * trainer doorheen tikt op een veldspeler: rood -> geel -> wit -> rood...
+   * Elke andere/onbekende kleur (zoals de automatische "verplaatst"-kleur)
+   * wordt behandeld als startpunt en springt naar rood.
+   */
+  function getNextManualColor(currentColor) {
+    if (currentColor === "red") {
+      return "yellow";
+    }
+    if (currentColor === "yellow") {
+      return "white";
+    }
+    return "red";
+  }
+
   /**
    * Zoekt het actieve tijdsblok (wisselmoment) van een wedstrijd op.
    */
@@ -1571,16 +1597,18 @@
       blockActiveLabelEl.textContent = "Actief blok: " + getBlockLabel(currentMatch, index);
     }
 
-    function createPitchToken(player, pos, changeType) {
+    function createPitchToken(player, pos, displayColor) {
       const token = document.createElement("div");
       let className = "pitch-token";
       if (player.isGuest) {
         className += " pitch-token--guest";
       }
-      if (changeType === "new-in") {
-        className += " pitch-token--new-in";
-      } else if (changeType === "moved") {
-        className += " pitch-token--moved";
+      if (displayColor === "red") {
+        className += " pitch-token--color-red";
+      } else if (displayColor === "orange") {
+        className += " pitch-token--color-orange";
+      } else if (displayColor === "yellow") {
+        className += " pitch-token--color-yellow";
       }
       token.className = className;
       token.style.left = pos.x + "%";
@@ -1610,13 +1638,69 @@
       return token;
     }
 
+    /**
+     * Bepaalt de kleur die een veldspeler automatisch zou krijgen op basis
+     * van vergelijking met het vorige tijdsblok: "red" (nieuw vanaf de
+     * bank) of "orange" (van plek gewisseld binnen het veld). Kleine
+     * aanpassingen (< SIGNIFICANT_POSITION_CHANGE_PCT) tellen niet als een
+     * echte verplaatsing.
+     */
+    function getAutoColor(playerId, pos) {
+      const activeBlock = getActiveBlock(currentMatch);
+      const previousBlock = getPreviousBlock(currentMatch, activeBlock);
+      if (!previousBlock) {
+        return "white";
+      }
+      const prevPos = previousBlock.positions[playerId];
+      if (!prevPos) {
+        return "red"; // nieuw vanaf de bank ingevallen
+      }
+      const distance = Math.hypot(prevPos.x - pos.x, prevPos.y - pos.y);
+      if (distance >= SIGNIFICANT_POSITION_CHANGE_PCT) {
+        return "orange"; // stond al op het veld, echt andere positie
+      }
+      return "white";
+    }
+
+    /**
+     * De uiteindelijke kleur van een veldspeler: een handmatige keuze van de
+     * trainer (via tikken) gaat altijd vóór de automatische kleurcodering.
+     */
+    function getDisplayColor(activeBlock, playerId, pos) {
+      const override = (activeBlock.manualColors || {})[playerId];
+      if (override) {
+        return override;
+      }
+      return getAutoColor(playerId, pos);
+    }
+
+    /**
+     * Doorloopt de handmatige kleurcyclus (rood -> geel -> wit) voor een
+     * speler die al op het veld staat. Wordt aangeroepen bij een simpele tik
+     * (zonder sleepbeweging) op een veldspeler.
+     */
+    function cycleManualColor(playerId) {
+      const activeBlock = getActiveBlock(currentMatch);
+      const pos = activeBlock.positions[playerId];
+      if (!pos) {
+        return;
+      }
+      if (!activeBlock.manualColors) {
+        activeBlock.manualColors = {};
+      }
+      const current = getDisplayColor(activeBlock, playerId, pos);
+      activeBlock.manualColors[playerId] = getNextManualColor(current);
+      persistMatchStore();
+      showAutosaveHint();
+      renderPitch();
+    }
+
     function renderPitch() {
       pitchEl.querySelectorAll(".pitch-token").forEach(function (el) {
         el.remove();
       });
 
       const activeBlock = getActiveBlock(currentMatch);
-      const previousBlock = getPreviousBlock(currentMatch, activeBlock);
 
       Object.keys(activeBlock.positions).forEach(function (playerId) {
         const player = currentTeam.players.find(function (p) {
@@ -1628,20 +1712,12 @@
         }
 
         const pos = activeBlock.positions[playerId];
-        let changeType = null;
+        const displayColor = getDisplayColor(activeBlock, playerId, pos);
 
-        if (previousBlock) {
-          const prevPos = previousBlock.positions[playerId];
-          if (!prevPos) {
-            changeType = "new-in"; // nieuw vanaf de bank ingevallen
-          } else if (prevPos.x !== pos.x || prevPos.y !== pos.y) {
-            changeType = "moved"; // stond al op het veld, andere positie
-          }
-        }
-
-        pitchEl.appendChild(createPitchToken(player, pos, changeType));
+        pitchEl.appendChild(createPitchToken(player, pos, displayColor));
       });
     }
+
 
     function renderBench() {
       benchEl.querySelectorAll(".bench-card").forEach(function (el) {
@@ -1701,30 +1777,45 @@
         return;
       }
 
-      sourceEl.classList.add("is-dragging");
-
-      const ghost = document.createElement("div");
-      ghost.className = "drag-ghost pitch-token" + (player.isGuest ? " pitch-token--guest" : "");
-
-      const avatar = document.createElement("span");
-      avatar.className = "pitch-token__avatar";
-      avatar.textContent = getInitials(player.name);
-
-      const nameEl = document.createElement("span");
-      nameEl.className = "pitch-token__name";
-      nameEl.textContent = player.name.split(/\s+/)[0];
-
-      ghost.appendChild(avatar);
-      ghost.appendChild(nameEl);
-      document.body.appendChild(ghost);
+      const startClientX = event.clientX;
+      const startClientY = event.clientY;
+      let hasDragged = false;
+      let ghost = null;
 
       function moveGhostTo(clientX, clientY) {
-        ghost.style.transform = "translate(" + clientX + "px, " + clientY + "px) translate(-50%, -50%)";
+        if (ghost) {
+          ghost.style.transform = "translate(" + clientX + "px, " + clientY + "px) translate(-50%, -50%)";
+        }
       }
 
-      moveGhostTo(event.clientX, event.clientY);
+      function beginActualDrag() {
+        sourceEl.classList.add("is-dragging");
+        ghost = document.createElement("div");
+        ghost.className = "drag-ghost pitch-token" + (player.isGuest ? " pitch-token--guest" : "");
+
+        const avatar = document.createElement("span");
+        avatar.className = "pitch-token__avatar";
+        avatar.textContent = getInitials(player.name);
+
+        const nameEl = document.createElement("span");
+        nameEl.className = "pitch-token__name";
+        nameEl.textContent = player.name.split(/\s+/)[0];
+
+        ghost.appendChild(avatar);
+        ghost.appendChild(nameEl);
+        document.body.appendChild(ghost);
+      }
 
       function onPointerMove(moveEvent) {
+        if (!hasDragged) {
+          const dx = moveEvent.clientX - startClientX;
+          const dy = moveEvent.clientY - startClientY;
+          if (Math.sqrt(dx * dx + dy * dy) < DRAG_MOVE_THRESHOLD_PX) {
+            return; // (nog) geen echte sleepbeweging, alleen vingertrilling
+          }
+          hasDragged = true;
+          beginActualDrag();
+        }
         moveGhostTo(moveEvent.clientX, moveEvent.clientY);
       }
 
@@ -1732,10 +1823,23 @@
         document.removeEventListener("pointermove", onPointerMove);
         document.removeEventListener("pointerup", onPointerUp);
         document.removeEventListener("pointercancel", onPointerUp);
-        ghost.remove();
+
+        if (!hasDragged) {
+          // Simpele tik zonder sleepbeweging: de speler blijft op zijn plek
+          // staan. Op het veld wijzigt dit alleen de handmatige kleur.
+          if (origin === "pitch") {
+            cycleManualColor(playerId);
+          }
+          return;
+        }
+
+        if (ghost) {
+          ghost.remove();
+        }
         sourceEl.classList.remove("is-dragging");
 
         const activeBlock = getActiveBlock(currentMatch);
+        const positionBeforeDrag = origin === "pitch" ? activeBlock.positions[playerId] : null;
         const pitchRect = pitchEl.getBoundingClientRect();
         const droppedInPitch =
           upEvent.clientX >= pitchRect.left &&
@@ -1743,15 +1847,30 @@
           upEvent.clientY >= pitchRect.top &&
           upEvent.clientY <= pitchRect.bottom;
 
+        let newPosition = null;
         if (droppedInPitch) {
           const xPct = clamp(((upEvent.clientX - pitchRect.left) / pitchRect.width) * 100, 4, 96);
           const yPct = clamp(((upEvent.clientY - pitchRect.top) / pitchRect.height) * 100, 4, 96);
-          activeBlock.positions[playerId] = {
+          newPosition = {
             x: Math.round(xPct * 10) / 10,
             y: Math.round(yPct * 10) / 10
           };
+          activeBlock.positions[playerId] = newPosition;
         } else if (origin === "pitch") {
           delete activeBlock.positions[playerId]; // terug naar de bank
+        }
+
+        // Een handmatige kleurkeuze blijft staan bij een minimale
+        // verschuiving. Pas als de speler écht van plek verandert (bijv.
+        // van centrale verdediger naar rechterverdediger), vervalt de
+        // handmatige keuze weer ten gunste van de automatische kleur.
+        const isSignificantMove =
+          !positionBeforeDrag ||
+          !newPosition ||
+          Math.hypot(positionBeforeDrag.x - newPosition.x, positionBeforeDrag.y - newPosition.y) >=
+            SIGNIFICANT_POSITION_CHANGE_PCT;
+        if (isSignificantMove && activeBlock.manualColors) {
+          delete activeBlock.manualColors[playerId];
         }
 
         persistMatchStore();
@@ -2012,6 +2131,10 @@
         currentMatch.ended = false;
         persistMatchStore();
       }
+      if (!currentMatch.live.manualColors) {
+        currentMatch.live.manualColors = {};
+        persistMatchStore();
+      }
     }
 
     /**
@@ -2145,13 +2268,15 @@
       btnToggle.setAttribute("aria-label", currentMatch.live.running ? "Pauze" : "Start");
     }
 
-    function createLiveToken(player, pos, changeType) {
+    function createLiveToken(player, pos, displayColor) {
       const token = document.createElement("div");
       let className = "pitch-token" + (player.isGuest ? " pitch-token--guest" : "");
-      if (changeType === "new-in") {
-        className += " pitch-token--new-in";
-      } else if (changeType === "moved") {
-        className += " pitch-token--moved";
+      if (displayColor === "red") {
+        className += " pitch-token--color-red";
+      } else if (displayColor === "orange") {
+        className += " pitch-token--color-orange";
+      } else if (displayColor === "yellow") {
+        className += " pitch-token--color-yellow";
       }
       token.className = className;
       token.style.left = pos.x + "%";
@@ -2181,12 +2306,61 @@
       return token;
     }
 
+    /**
+     * Bepaalt de automatische kleur van een veldspeler op basis van het
+     * referentiepunt: "red" (nieuw vanaf de bank ingevallen sinds de
+     * vorige wissel) of "orange" (stond al op het veld, maar echt van plek
+     * gewisseld). Kleine aanpassingen (< SIGNIFICANT_POSITION_CHANGE_PCT)
+     * tellen niet als een echte verplaatsing.
+     */
+    function getAutoColor(playerId, pos) {
+      const referencePositions = currentMatch.live.referencePositions || {};
+      const refPos = referencePositions[playerId];
+      if (!refPos) {
+        return "red";
+      }
+      const distance = Math.hypot(refPos.x - pos.x, refPos.y - pos.y);
+      if (distance >= SIGNIFICANT_POSITION_CHANGE_PCT) {
+        return "orange";
+      }
+      return "white";
+    }
+
+    /**
+     * De uiteindelijke kleur van een veldspeler: een handmatige keuze van de
+     * trainer (via tikken) gaat altijd vóór de automatische kleurcodering.
+     */
+    function getDisplayColor(playerId, pos) {
+      const override = (currentMatch.live.manualColors || {})[playerId];
+      if (override) {
+        return override;
+      }
+      return getAutoColor(playerId, pos);
+    }
+
+    /**
+     * Doorloopt de handmatige kleurcyclus (rood -> geel -> wit) voor een
+     * speler die al op het veld staat. Wordt aangeroepen bij een simpele tik
+     * (zonder sleepbeweging) op een veldspeler.
+     */
+    function cycleManualColor(playerId) {
+      const pos = currentMatch.live.positions[playerId];
+      if (!pos) {
+        return;
+      }
+      if (!currentMatch.live.manualColors) {
+        currentMatch.live.manualColors = {};
+      }
+      const current = getDisplayColor(playerId, pos);
+      currentMatch.live.manualColors[playerId] = getNextManualColor(current);
+      persistMatchStore();
+      renderPitch();
+    }
+
     function renderPitch() {
       pitchEl.querySelectorAll(".pitch-token").forEach(function (el) {
         el.remove();
       });
-
-      const referencePositions = currentMatch.live.referencePositions || {};
 
       Object.keys(currentMatch.live.positions).forEach(function (playerId) {
         const player = findPlayer(playerId);
@@ -2196,17 +2370,12 @@
         }
 
         const pos = currentMatch.live.positions[playerId];
-        const refPos = referencePositions[playerId];
-        let changeType = null;
-        if (!refPos) {
-          changeType = "new-in"; // nieuw vanaf de bank ingevallen sinds de vorige wissel
-        } else if (refPos.x !== pos.x || refPos.y !== pos.y) {
-          changeType = "moved"; // stond al op het veld, andere positie sinds de vorige wissel
-        }
+        const displayColor = getDisplayColor(playerId, pos);
 
-        pitchEl.appendChild(createLiveToken(player, pos, changeType));
+        pitchEl.appendChild(createLiveToken(player, pos, displayColor));
       });
     }
+
 
     function renderBench() {
       benchEl.querySelectorAll(".bench-card").forEach(function (el) {
@@ -2295,30 +2464,45 @@
         return;
       }
 
-      sourceEl.classList.add("is-dragging");
-
-      const ghost = document.createElement("div");
-      ghost.className = "drag-ghost pitch-token" + (player.isGuest ? " pitch-token--guest" : "");
-
-      const avatar = document.createElement("span");
-      avatar.className = "pitch-token__avatar";
-      avatar.textContent = getInitials(player.name);
-
-      const nameEl = document.createElement("span");
-      nameEl.className = "pitch-token__name";
-      nameEl.textContent = player.name.split(/\s+/)[0];
-
-      ghost.appendChild(avatar);
-      ghost.appendChild(nameEl);
-      document.body.appendChild(ghost);
+      const startClientX = event.clientX;
+      const startClientY = event.clientY;
+      let hasDragged = false;
+      let ghost = null;
 
       function moveGhostTo(clientX, clientY) {
-        ghost.style.transform = "translate(" + clientX + "px, " + clientY + "px) translate(-50%, -50%)";
+        if (ghost) {
+          ghost.style.transform = "translate(" + clientX + "px, " + clientY + "px) translate(-50%, -50%)";
+        }
       }
 
-      moveGhostTo(event.clientX, event.clientY);
+      function beginActualDrag() {
+        sourceEl.classList.add("is-dragging");
+        ghost = document.createElement("div");
+        ghost.className = "drag-ghost pitch-token" + (player.isGuest ? " pitch-token--guest" : "");
+
+        const avatar = document.createElement("span");
+        avatar.className = "pitch-token__avatar";
+        avatar.textContent = getInitials(player.name);
+
+        const nameEl = document.createElement("span");
+        nameEl.className = "pitch-token__name";
+        nameEl.textContent = player.name.split(/\s+/)[0];
+
+        ghost.appendChild(avatar);
+        ghost.appendChild(nameEl);
+        document.body.appendChild(ghost);
+      }
 
       function onPointerMove(moveEvent) {
+        if (!hasDragged) {
+          const dx = moveEvent.clientX - startClientX;
+          const dy = moveEvent.clientY - startClientY;
+          if (Math.sqrt(dx * dx + dy * dy) < DRAG_MOVE_THRESHOLD_PX) {
+            return; // (nog) geen echte sleepbeweging, alleen vingertrilling
+          }
+          hasDragged = true;
+          beginActualDrag();
+        }
         moveGhostTo(moveEvent.clientX, moveEvent.clientY);
       }
 
@@ -2326,8 +2510,22 @@
         document.removeEventListener("pointermove", onPointerMove);
         document.removeEventListener("pointerup", onPointerUp);
         document.removeEventListener("pointercancel", onPointerUp);
-        ghost.remove();
+
+        if (!hasDragged) {
+          // Simpele tik zonder sleepbeweging: de speler blijft op zijn plek
+          // staan. Op het veld wijzigt dit alleen de handmatige kleur.
+          if (origin === "pitch") {
+            cycleManualColor(playerId);
+          }
+          return;
+        }
+
+        if (ghost) {
+          ghost.remove();
+        }
         sourceEl.classList.remove("is-dragging");
+
+        const positionBeforeDrag = origin === "pitch" ? currentMatch.live.positions[playerId] : null;
 
         // Let op: referencePositions wordt hier bewust NIET bijgewerkt. Die
         // blijft staan vanaf het laatst toegepaste blok/de wedstrijdstart,
@@ -2386,6 +2584,20 @@
         } else if (origin === "pitch") {
           delete currentMatch.live.positions[playerId];
           logSubstitution(player.name + " eruit zonder vervanger — team speelt met een man minder");
+        }
+
+        // Een handmatige kleurkeuze blijft staan bij een minimale
+        // verschuiving. Pas als de speler écht van plek verandert (bijv.
+        // van centrale verdediger naar rechterverdediger), vervalt de
+        // handmatige keuze weer ten gunste van de automatische kleur.
+        const positionAfterDrag = currentMatch.live.positions[playerId];
+        const isSignificantMove =
+          !positionBeforeDrag ||
+          !positionAfterDrag ||
+          Math.hypot(positionBeforeDrag.x - positionAfterDrag.x, positionBeforeDrag.y - positionAfterDrag.y) >=
+            SIGNIFICANT_POSITION_CHANGE_PCT;
+        if (isSignificantMove && currentMatch.live.manualColors) {
+          delete currentMatch.live.manualColors[playerId];
         }
 
         persistMatchStore();
@@ -2492,6 +2704,9 @@
       // zijn — net als bij het wisselen van blok in de module Opstelling.
       currentMatch.live.referencePositions = JSON.parse(JSON.stringify(previousPositions));
       currentMatch.live.positions = newPositions;
+      // Handmatig gekozen kleuren horen bij de vorige opstelling en
+      // vervallen bij het overnemen van een compleet nieuwe opstelling.
+      currentMatch.live.manualColors = {};
       persistMatchStore();
       renderPitch();
       renderBench();

@@ -15,6 +15,7 @@
   --color-danger: #d9483e;
   --color-warning: #e08a1e;
   --color-blue: #2f6fed;
+  --color-yellow: #f0c419;
   --color-line: #e1e9e4;
 
   --radius-s: 8px;
@@ -1290,17 +1291,25 @@ thead .minutes-table__total {
   line-height: 1.5;
 }
 
-/* Kleurcodering voor wisselmomenten: vergelijking met het vorige blok */
-.pitch-token--new-in .pitch-token__avatar {
+/* Kleurcodering voor wisselmomenten: vergelijking met het vorige blok, of
+   een handmatige keuze van de trainer (tikken op een veldspeler doorloopt
+   rood -> geel -> wit). */
+.pitch-token--color-red .pitch-token__avatar {
   background: var(--color-danger);
   border-color: var(--color-danger);
   color: var(--color-white);
 }
 
-.pitch-token--moved .pitch-token__avatar {
+.pitch-token--color-orange .pitch-token__avatar {
   background: var(--color-warning);
   border-color: var(--color-warning);
   color: var(--color-white);
+}
+
+.pitch-token--color-yellow .pitch-token__avatar {
+  background: var(--color-yellow);
+  border-color: var(--color-yellow);
+  color: var(--color-dark-green);
 }
 
 .pitch-token.is-dragging,
