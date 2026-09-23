@@ -376,24 +376,25 @@
 
       <div class="card">
         <h3 class="card__title">📤 Exporteren</h3>
-        <p class="card__text">Kies een team en wedstrijd en deel óf de wedstrijd met opstelling(en) en live-resultaten (JSON, werkt direct het Dashboard van een collega-trainer bij na import), óf een leesbaar wedstrijdresultaat (CSV/Excel) met minuten en basis/reserve per speler, óf een teamoverzicht met alle spelers, speelminuten en basisplekken (JSON of CSV/Excel). De import herkent zelf om welk formaat en type het gaat.</p>
+        <p class="card__text">Kies een team en deel óf alle data van dat team in één keer (spelers, alle wedstrijden, opstellingen en speelminuten - werkt bij import het Dashboard van een collega-trainer direct volledig bij), óf kies een specifieke wedstrijd om alleen die te delen (JSON of leesbare CSV/Excel), óf een teamoverzicht met alle spelers, speelminuten en basisplekken (JSON of CSV/Excel). De import herkent zelf om welk formaat en type het gaat.</p>
         <div class="field-row">
           <label class="field-label" for="export-team-select">Team</label>
           <select class="field-select" id="export-team-select"></select>
         </div>
+        <button class="btn btn--primary btn--block" id="btn-export-team-full">Team volledig exporteren (spelers + alle wedstrijden + resultaten)</button>
         <div class="field-row">
           <label class="field-label" for="export-match-select">Wedstrijd</label>
           <select class="field-select" id="export-match-select"></select>
         </div>
-        <button class="btn btn--primary btn--block" id="btn-export-match">Wedstrijd + opstelling + live-resultaten exporteren (JSON)</button>
-        <button class="btn btn--secondary btn--block" id="btn-export-match-results-csv">Wedstrijdresultaten exporteren (CSV/Excel)</button>
+        <button class="btn btn--secondary btn--block" id="btn-export-match">Eén wedstrijd + opstelling + live-resultaten exporteren (JSON)</button>
+        <button class="btn btn--secondary btn--block" id="btn-export-match-results-csv">Wedstrijdresultaten van deze wedstrijd (CSV/Excel)</button>
         <button class="btn btn--secondary btn--block" id="btn-export-team-overview">Teamoverzicht exporteren (JSON)</button>
         <button class="btn btn--secondary btn--block" id="btn-export-team-overview-csv">Teamoverzicht exporteren (CSV/Excel)</button>
       </div>
 
       <div class="card">
         <h3 class="card__title">📥 Importeren</h3>
-        <p class="card__text">Importeer een back-up (JSON) of teamoverzicht (JSON of CSV/Excel) van jezelf of een collega-trainer. Je eigen teams, spelers en wedstrijden blijven altijd behouden — er wordt alleen nieuwe of bijgewerkte informatie toegevoegd.</p>
+        <p class="card__text">Importeer een volledig team-export, back-up (JSON) of teamoverzicht (JSON of CSV/Excel) van jezelf of een collega-trainer. Bij een "team volledig"-export wordt gevraagd of de spelers en wedstrijden van dát team volledig vervangen mogen worden door de geïmporteerde versie (handig om alles gelijk te trekken); bij andere imports blijven je eigen teams, spelers en wedstrijden altijd behouden — dan wordt alleen nieuwe of bijgewerkte informatie toegevoegd. Na import worden alle schermen (Dashboard, Team, Opstelling) automatisch ververst.</p>
         <label class="btn btn--secondary btn--block" for="file-import">
           Kies bestand
         </label>

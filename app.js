@@ -3144,6 +3144,65 @@
     };
   }
 
+  /**
+   * Bouwt een volledig exportpakket van één team: de spelerslijst én ALLE
+   * wedstrijden van dat team (opstellingen + live-speelminuten per
+   * wedstrijd) in één bestand (herkenbaar bij import aan format
+   * "vtm-team-full-export"). Bedoeld om in één keer alle data van een
+   * team te delen met een collega-trainer, zodat diens Dashboard na
+   * import volledig up-to-date is.
+   */
+  function buildTeamFullExportPayload(team) {
+    const bucket = normalizeMatchBucket(loadMatchStore()[team.id]);
+    const matchData = {};
+    matchData[team.id] = JSON.parse(JSON.stringify(bucket));
+    return {
+      format: "vtm-team-full-export",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      teamData: {
+        activeTeamId: team.id,
+        teams: [JSON.parse(JSON.stringify(team))]
+      },
+      matchData: matchData
+    };
+  }
+
+  /**
+   * Vervangt (ververst) de spelerslijst én alle wedstrijden van één team
+   * volledig door de geïmporteerde versie - in tegenstelling tot
+   * mergeTeamData/mergeMatchData, die nooit iets bestaands overschrijven.
+   * Andere teams en hun wedstrijden blijven volledig ongemoeid.
+   */
+  function replaceTeamFullData(localTeamData, localMatchStore, importedTeam, importedBucket) {
+    const clonedTeam = JSON.parse(JSON.stringify(importedTeam));
+    const teams = localTeamData.teams.slice();
+    const existingIndex = teams.findIndex(function (team) {
+      return team.id === clonedTeam.id;
+    });
+    const wasExisting = existingIndex !== -1;
+    if (wasExisting) {
+      teams[existingIndex] = clonedTeam;
+    } else {
+      teams.push(clonedTeam);
+    }
+
+    const activeTeamId = teams.some(function (team) { return team.id === localTeamData.activeTeamId; })
+      ? localTeamData.activeTeamId
+      : clonedTeam.id;
+
+    const matchStore = Object.assign({}, localMatchStore);
+    matchStore[clonedTeam.id] = JSON.parse(JSON.stringify(importedBucket));
+
+    return {
+      teamData: { activeTeamId: activeTeamId, teams: teams },
+      matchStore: matchStore,
+      wasExisting: wasExisting,
+      playerCount: clonedTeam.players.length,
+      matchCount: importedBucket.matches.length
+    };
+  }
+
   const TEAM_OVERVIEW_CSV_HEADER = ["TeamId", "TeamNaam", "Seizoen", "SpelerId", "SpelerNaam", "Posities", "Status", "Gast", "Speelminuten"];
 
   /**
@@ -3372,6 +3431,7 @@
     const btnBackup = document.getElementById("btn-backup");
     const exportTeamSelect = document.getElementById("export-team-select");
     const exportMatchSelect = document.getElementById("export-match-select");
+    const btnExportTeamFull = document.getElementById("btn-export-team-full");
     const btnExportMatch = document.getElementById("btn-export-match");
     const btnExportMatchResultsCsv = document.getElementById("btn-export-match-results-csv");
     const btnExportTeamOverview = document.getElementById("btn-export-team-overview");
@@ -3465,6 +3525,16 @@
 
     if (exportTeamSelect) {
       exportTeamSelect.addEventListener("change", renderExportMatchOptions);
+    }
+
+    if (btnExportTeamFull) {
+      btnExportTeamFull.addEventListener("click", function () {
+        const team = getSelectedExportTeam();
+        if (!team) {
+          return;
+        }
+        downloadJsonPayload(buildTeamFullExportPayload(team), "team-volledig-" + team.name);
+      });
     }
 
     if (btnExportMatch) {
@@ -3564,6 +3634,44 @@
 
       if (!payload || typeof payload !== "object" || !payload.teamData || !Array.isArray(payload.teamData.teams)) {
         showImportResult("⚠️ Geen geldige back-updata gevonden in de import.", true);
+        return;
+      }
+
+      if (payload.format === "vtm-team-full-export") {
+        const importedTeam = payload.teamData.teams[0];
+        if (!importedTeam) {
+          showImportResult("⚠️ Geen team gevonden in deze export.", true);
+          return;
+        }
+        const importedBucket = normalizeMatchBucket((payload.matchData || {})[importedTeam.id]);
+        const existingTeam = loadTeamData().teams.find(function (team) {
+          return team.id === importedTeam.id;
+        });
+
+        if (existingTeam) {
+          const confirmed = window.confirm(
+            "Team \"" + importedTeam.name + "\" bestaat al lokaal. Wil je de spelers en alle wedstrijden van dit team volledig vervangen door de geïmporteerde versie? Dit overschrijft de huidige gegevens van dit team (andere teams blijven ongewijzigd)."
+          );
+          if (!confirmed) {
+            showImportResult("Import geannuleerd: er is niets gewijzigd.", false);
+            return;
+          }
+        }
+
+        const result = replaceTeamFullData(loadTeamData(), loadMatchStore(), importedTeam, importedBucket);
+        saveTeamData(result.teamData);
+        saveMatchStore(result.matchStore);
+
+        showImportResult(
+          "✓ Team volledig " + (result.wasExisting ? "ververst" : "toegevoegd") + ": " +
+          result.playerCount + " speler(s), " + result.matchCount + " wedstrijd(en) met opstellingen en speelminuten.",
+          false
+        );
+
+        renderExportTeamOptions();
+        if (textArea) {
+          textArea.value = "";
+        }
         return;
       }
 
