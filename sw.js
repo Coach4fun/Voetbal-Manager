@@ -15,7 +15,7 @@
         app.js).
    ========================================================= */
 
-const CACHE_NAME = "vtm-cache-v18";
+const CACHE_NAME = "vtm-cache-v19";
 
 const APP_SHELL_FILES = [
   "./",
@@ -23,7 +23,12 @@ const APP_SHELL_FILES = [
   "./style.css",
   "./app.js",
   "./manifest.json",
-  "./icons/icon.svg"
+  "./icons/icon.svg",
+  "./icons/apple-touch-icon-180.png",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./icons/icon-maskable-192.png",
+  "./icons/icon-maskable-512.png"
 ];
 
 // Installatie: cache alle app-shell bestanden.
