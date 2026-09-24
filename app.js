@@ -4143,9 +4143,26 @@
     const btnCloudSyncNow = document.getElementById("btn-cloud-sync-now");
     const btnCloudShare = document.getElementById("btn-cloud-share");
     const cloudShareEmailInput = document.getElementById("cloud-share-email");
+    const btnAuthForgotPassword = document.getElementById("btn-auth-forgot-password");
+    const resetPasswordScreen = document.getElementById("reset-password-screen");
+    const resetPasswordForm = document.getElementById("reset-password-form");
+    const resetPasswordInput = document.getElementById("reset-password-input");
+    const btnResetPasswordSubmit = document.getElementById("btn-reset-password-submit");
+    const resetPasswordStatus = document.getElementById("reset-password-status");
 
     let mode = "signin";
     let justSignedUp = false;
+    let passwordRecoveryInProgress = false;
+
+    function setResetPasswordStatus(message, isError) {
+      if (!resetPasswordStatus) {
+        return;
+      }
+      resetPasswordStatus.textContent = message;
+      resetPasswordStatus.hidden = !message;
+      resetPasswordStatus.classList.toggle("auth-card__status--error", !!isError);
+      resetPasswordStatus.classList.toggle("auth-card__status--ok", !isError && !!message);
+    }
 
     function setAuthStatus(message, isError) {
       if (!authStatus) {
@@ -4173,6 +4190,7 @@
     }
 
     function showAuthenticatedUI(session) {
+      if (resetPasswordScreen) resetPasswordScreen.hidden = true;
       if (authScreen) authScreen.hidden = true;
       if (appTopbar) appTopbar.hidden = false;
       if (appMain) appMain.hidden = false;
@@ -4182,11 +4200,21 @@
     }
 
     function showLoginUI() {
+      if (resetPasswordScreen) resetPasswordScreen.hidden = true;
       if (authScreen) authScreen.hidden = false;
       if (appTopbar) appTopbar.hidden = true;
       if (appMain) appMain.hidden = true;
       if (bottomNav) bottomNav.hidden = true;
       if (topbarAccount) topbarAccount.hidden = true;
+    }
+
+    function showResetPasswordUI() {
+      if (authScreen) authScreen.hidden = true;
+      if (appTopbar) appTopbar.hidden = true;
+      if (appMain) appMain.hidden = true;
+      if (bottomNav) bottomNav.hidden = true;
+      if (topbarAccount) topbarAccount.hidden = true;
+      if (resetPasswordScreen) resetPasswordScreen.hidden = false;
     }
 
     if (authForm) {
@@ -4241,6 +4269,59 @@
       });
     }
 
+    if (btnAuthForgotPassword) {
+      btnAuthForgotPassword.addEventListener("click", function () {
+        const email = authEmailInput ? authEmailInput.value.trim() : "";
+        if (!email) {
+          setAuthStatus("⚠️ Vul eerst je e-mailadres in, dan sturen we een link om je wachtwoord opnieuw in te stellen.", true);
+          return;
+        }
+        btnAuthForgotPassword.disabled = true;
+        setAuthStatus("Bezig met versturen…", false);
+        const redirectTo = window.location.origin + window.location.pathname;
+        client.auth.resetPasswordForEmail(email, { redirectTo: redirectTo }).then(function (result) {
+          btnAuthForgotPassword.disabled = false;
+          if (result.error) {
+            setAuthStatus("⚠️ " + result.error.message, true);
+            return;
+          }
+          setAuthStatus("✓ Check je e-mail voor een link om een nieuw wachtwoord in te stellen.", false);
+        }).catch(function (e) {
+          btnAuthForgotPassword.disabled = false;
+          setAuthStatus("⚠️ Er ging iets mis: " + e.message, true);
+        });
+      });
+    }
+
+    if (resetPasswordForm) {
+      resetPasswordForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const newPassword = resetPasswordInput ? resetPasswordInput.value : "";
+        if (!newPassword) {
+          return;
+        }
+        if (btnResetPasswordSubmit) btnResetPasswordSubmit.disabled = true;
+        setResetPasswordStatus("Bezig met opslaan…", false);
+        client.auth.updateUser({ password: newPassword }).then(function (result) {
+          if (btnResetPasswordSubmit) btnResetPasswordSubmit.disabled = false;
+          if (result.error) {
+            setResetPasswordStatus("⚠️ " + result.error.message, true);
+            return;
+          }
+          passwordRecoveryInProgress = false;
+          setResetPasswordStatus("✓ Wachtwoord opgeslagen.", false);
+          if (resetPasswordInput) resetPasswordInput.value = "";
+          if (cloudState.session) {
+            showAuthenticatedUI(cloudState.session);
+            pullCloudDataAndApply();
+          }
+        }).catch(function (e) {
+          if (btnResetPasswordSubmit) btnResetPasswordSubmit.disabled = false;
+          setResetPasswordStatus("⚠️ Er ging iets mis: " + e.message, true);
+        });
+      });
+    }
+
     if (btnCloudSyncNow) {
       btnCloudSyncNow.addEventListener("click", function () {
         pullCloudDataAndApply();
@@ -4273,6 +4354,20 @@
     client.auth.onAuthStateChange(function (event, session) {
       if (session) {
         cloudState.session = session;
+        if (event === "PASSWORD_RECOVERY") {
+          // Trainer kwam via de "wachtwoord vergeten"-link binnen: eerst
+          // een nieuw wachtwoord laten instellen voordat de app zelf
+          // wordt getoond.
+          passwordRecoveryInProgress = true;
+          setResetPasswordStatus("", false);
+          showResetPasswordUI();
+          return;
+        }
+        if (passwordRecoveryInProgress) {
+          // Nog bezig met het wachtwoord-herstelscherm: niet meteen
+          // doorschakelen naar de app op elk tussentijds auth-event.
+          return;
+        }
         if (justSignedUp && event === "SIGNED_IN") {
           // Net geregistreerd én meteen een sessie gekregen ("Confirm
           // email" staat uit): toon eerst een duidelijke succesmelding,

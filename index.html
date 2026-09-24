@@ -48,7 +48,32 @@
           <span id="auth-toggle-hint">Nog geen account?</span>
           <button type="button" id="btn-auth-toggle-mode">Registreren</button>
         </p>
+        <p class="auth-card__toggle">
+          <button type="button" id="btn-auth-forgot-password">Wachtwoord vergeten?</button>
+        </p>
         <p class="auth-card__status" id="auth-status" hidden></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wordt getoond nadat een trainer op de link in de "wachtwoord
+       vergeten"-e-mail heeft geklikt (Supabase geeft dan automatisch een
+       tijdelijke sessie + het PASSWORD_RECOVERY-event). -->
+  <div id="reset-password-screen" class="auth-screen" hidden>
+    <div class="auth-card">
+      <span class="auth-card__logo" aria-hidden="true">⚽</span>
+      <h1 class="auth-card__title">VoetbalTeam Manager</h1>
+      <div class="card">
+        <h3 class="card__title">Nieuw wachtwoord instellen</h3>
+        <p class="card__text">Kies een nieuw wachtwoord voor je account.</p>
+        <form id="reset-password-form">
+          <div class="field-row">
+            <label class="field-label" for="reset-password-input">Nieuw wachtwoord</label>
+            <input class="field-input" type="password" id="reset-password-input" autocomplete="new-password" minlength="6" required>
+          </div>
+          <button type="submit" class="btn btn--primary btn--block" id="btn-reset-password-submit">Wachtwoord opslaan</button>
+        </form>
+        <p class="auth-card__status" id="reset-password-status" hidden></p>
       </div>
     </div>
   </div>
