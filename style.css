@@ -110,6 +110,25 @@ button, input, select {
   font-size: 18px;
 }
 
+.app-topbar__account {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-topbar__account-email {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.app-topbar__account[hidden] {
+  display: none;
+}
+
 /* ---------- Main / Views ---------- */
 
 .app-main {
@@ -1767,6 +1786,82 @@ thead .minutes-table__total {
 
 .card__filename--error {
   color: var(--color-danger);
+  font-weight: 700;
+}
+
+/* ---------- Auth-scherm (inloggen/registreren voor cloud-sync) ---------- */
+
+.auth-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: linear-gradient(135deg, var(--color-dark-green), var(--color-green));
+  overflow-y: auto;
+}
+
+.auth-screen[hidden] {
+  display: none;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+}
+
+.auth-card__logo {
+  display: block;
+  text-align: center;
+  font-size: 40px;
+  margin-bottom: 4px;
+}
+
+.auth-card__title {
+  text-align: center;
+  color: var(--color-white);
+  margin: 0 0 18px 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.auth-card__toggle {
+  text-align: center;
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--color-gray);
+}
+
+.auth-card__toggle button {
+  background: none;
+  border: none;
+  color: var(--color-grass);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+}
+
+.auth-card__status {
+  margin-top: 10px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--color-gray);
+}
+
+.auth-card__status[hidden] {
+  display: none;
+}
+
+.auth-card__status--error {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.auth-card__status--ok {
+  color: var(--color-grass);
   font-weight: 700;
 }
 

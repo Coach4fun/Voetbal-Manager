@@ -153,13 +153,19 @@
   }
 
   /**
-   * Slaat de volledige teamdata op in localStorage.
+   * Slaat de volledige teamdata op in localStorage. Stuurt (gedebouncet)
+   * ook een update naar de cloud, tenzij options.skipCloudSync is
+   * meegegeven (bv. wanneer we net verse data uit de cloud hebben
+   * opgehaald en die niet meteen weer willen terugsturen).
    */
-  function saveTeamData(data) {
+  function saveTeamData(data, options) {
     try {
       localStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
       console.error("Kon teamdata niet opslaan in localStorage:", e);
+    }
+    if (!options || !options.skipCloudSync) {
+      scheduleCloudPush();
     }
   }
 
@@ -1139,13 +1145,18 @@
   }
 
   /**
-   * Slaat alle wedstrijddata (per team) op in localStorage.
+   * Slaat alle wedstrijddata (per team) op in localStorage. Stuurt
+   * (gedebouncet) ook een update naar de cloud, tenzij
+   * options.skipCloudSync is meegegeven.
    */
-  function saveMatchStore(store) {
+  function saveMatchStore(store, options) {
     try {
       localStorage.setItem(MATCH_STORAGE_KEY, JSON.stringify(store));
     } catch (e) {
       console.error("Kon wedstrijddata niet opslaan in localStorage:", e);
+    }
+    if (!options || !options.skipCloudSync) {
+      scheduleCloudPush();
     }
   }
 
@@ -3753,6 +3764,542 @@
     renderExportTeamOptions();
   }
 
+  /* =========================================================
+     Cloud-synchronisatie (Supabase)
+     Optionele laag bovenop de bestaande localStorage-opslag:
+     - Zolang er geen (geldige) Supabase-configuratie is ingevuld in
+       supabase-config.js, werkt de app precies als voorheen, volledig
+       lokaal/offline, zonder inlogscherm.
+     - Zodra er wél een geldige configuratie is, moet de trainer
+       inloggen (of een account aanmaken) om de app te gebruiken. Na
+       inloggen worden alle teams waar de trainer lid van is opgehaald
+       uit Supabase en over de lokale cache heen gezet; elke lokale
+       wijziging (via de bestaande saveTeamData/saveMatchStore) wordt
+       (gedebouncet) weer teruggestuurd naar Supabase.
+     - localStorage blijft de "offline cache": de app blijft dus ook
+       zonder internet gewoon werken, en synchroniseert automatisch
+       zodra er weer verbinding is.
+     ========================================================= */
+
+  const cloudState = {
+    client: null,
+    session: null,
+    knownTeamIds: new Set(),
+    pushTimer: null,
+    pushInFlight: false,
+    pushAgainAfter: false
+  };
+
+  /**
+   * Geeft aan of er een (ogenschijnlijk) geldige Supabase-configuratie
+   * is ingevuld in supabase-config.js én de Supabase-JS-library is
+   * geladen. Zolang dat niet zo is, blijft de app volledig lokaal
+   * werken zonder inlogscherm.
+   */
+  function isCloudConfigured() {
+    const config = window.VTM_SUPABASE_CONFIG;
+    return !!(
+      config &&
+      config.url && config.url.indexOf("YOUR-PROJECT") === -1 &&
+      config.anonKey && config.anonKey.indexOf("YOUR-ANON") === -1 &&
+      window.supabase && typeof window.supabase.createClient === "function"
+    );
+  }
+
+  /**
+   * Geeft de (gedeelde) Supabase-client terug, en maakt hem bij de
+   * eerste aanroep aan. Geeft null terug zolang er geen geldige
+   * configuratie is (zie isCloudConfigured).
+   */
+  function getSupabaseClient() {
+    if (cloudState.client) {
+      return cloudState.client;
+    }
+    if (!isCloudConfigured()) {
+      return null;
+    }
+    cloudState.client = window.supabase.createClient(
+      window.VTM_SUPABASE_CONFIG.url,
+      window.VTM_SUPABASE_CONFIG.anonKey
+    );
+    return cloudState.client;
+  }
+
+  /**
+   * Ververst het huidige actieve scherm (zoals na een import) zodat
+   * net gesynchroniseerde cloud-data direct zichtbaar wordt, zonder
+   * dat de trainer handmatig hoeft te verversen.
+   */
+  function refreshCurrentView() {
+    const activeViewEl = document.querySelector(".view--active");
+    const viewName = activeViewEl ? activeViewEl.getAttribute("data-view") : null;
+    if (viewName) {
+      document.dispatchEvent(new CustomEvent("vtm:view-activated", { detail: { view: viewName } }));
+    }
+  }
+
+  function setCloudSyncStatus(message, isError) {
+    const el = document.getElementById("cloud-sync-status");
+    if (!el) {
+      return;
+    }
+    el.textContent = message;
+    el.classList.toggle("card__filename--error", !!isError);
+  }
+
+  /**
+   * Plant (gedebouncet, 1.2s na de laatste wijziging) het versturen van
+   * de volledige lokale stand naar Supabase. Draait alleen als er een
+   * actieve sessie is; anders gebeurt er niets (de data blijft gewoon
+   * lokaal staan en wordt bij de volgende login of het eerstvolgende
+   * "online"-moment alsnog verstuurd).
+   */
+  function scheduleCloudPush() {
+    if (!cloudState.session) {
+      return;
+    }
+    if (cloudState.pushTimer) {
+      clearTimeout(cloudState.pushTimer);
+    }
+    cloudState.pushTimer = setTimeout(function () {
+      cloudState.pushTimer = null;
+      pushLocalStateToCloud();
+    }, 1200);
+  }
+
+  async function pushLocalStateToCloud() {
+    const client = getSupabaseClient();
+    if (!client || !cloudState.session) {
+      return;
+    }
+    if (cloudState.pushInFlight) {
+      // Er loopt al een push; plan er nog één na afloop, zodat de
+      // állerlaatste lokale stand ook echt verstuurd wordt.
+      cloudState.pushAgainAfter = true;
+      return;
+    }
+    cloudState.pushInFlight = true;
+    try {
+      const userId = cloudState.session.user.id;
+      const teamData = loadTeamData();
+      const matchStore = loadMatchStore();
+      for (const team of teamData.teams) {
+        await pushTeamToCloud(client, userId, team, matchStore[team.id]);
+      }
+      setCloudSyncStatus(
+        "✓ Gesynchroniseerd met de cloud (" + new Date().toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" }) + ").",
+        false
+      );
+    } catch (e) {
+      console.error("Cloud-synchronisatie (versturen) mislukt:", e);
+      setCloudSyncStatus("⚠️ Synchroniseren met de cloud is (tijdelijk) niet gelukt. Wijzigingen blijven lokaal bewaard en worden later opnieuw geprobeerd.", true);
+    } finally {
+      cloudState.pushInFlight = false;
+      if (cloudState.pushAgainAfter) {
+        cloudState.pushAgainAfter = false;
+        scheduleCloudPush();
+      }
+    }
+  }
+
+  async function pushTeamToCloud(client, userId, team, bucket) {
+    const { error: teamError } = await client.rpc("sync_team", {
+      p_id: team.id,
+      p_name: team.name,
+      p_season: team.season || ""
+    });
+    if (teamError) {
+      throw teamError;
+    }
+    cloudState.knownTeamIds.add(team.id);
+
+    const players = team.players || [];
+    const { error: playerError } = await client.rpc("sync_players", {
+      p_team_id: team.id,
+      p_players: players.map(function (player) { return { id: player.id, data: player }; })
+    });
+    if (playerError) {
+      throw playerError;
+    }
+    const { error: deletePlayerError } = await client.rpc("delete_missing_players", {
+      p_team_id: team.id,
+      p_keep_ids: players.map(function (p) { return p.id; })
+    });
+    if (deletePlayerError) {
+      console.error("Opschonen van verwijderde spelers in de cloud mislukt:", deletePlayerError);
+    }
+
+    const matches = bucket ? bucket.matches : [];
+    const { error: matchError } = await client.rpc("sync_matches", {
+      p_team_id: team.id,
+      p_matches: matches.map(function (match) { return { id: match.id, data: match }; }),
+      p_active_match_id: bucket ? bucket.activeMatchId : null
+    });
+    if (matchError) {
+      throw matchError;
+    }
+    const { error: deleteMatchError } = await client.rpc("delete_missing_matches", {
+      p_team_id: team.id,
+      p_keep_ids: matches.map(function (m) { return m.id; })
+    });
+    if (deleteMatchError) {
+      console.error("Opschonen van verwijderde wedstrijden in de cloud mislukt:", deleteMatchError);
+    }
+  }
+
+  /**
+   * Haalt alle teams (met spelers en wedstrijden) op waar de ingelogde
+   * trainer lid van is, en zet dit over de lokale cache heen. Teams die
+   * lokaal al bestaan maar nog niet gedeeld zijn met de cloud (bv.
+   * offline aangemaakt) blijven staan, en worden hierna automatisch
+   * alsnog geüpload naar Supabase.
+   */
+  async function pullCloudDataAndApply() {
+    const client = getSupabaseClient();
+    if (!client || !cloudState.session) {
+      return;
+    }
+    setCloudSyncStatus("Bezig met ophalen van cloud-data…", false);
+    try {
+      const userId = cloudState.session.user.id;
+      const { data: memberships, error: memberError } = await client
+        .from("team_members")
+        .select("team_id")
+        .eq("user_id", userId);
+      if (memberError) {
+        throw memberError;
+      }
+
+      const teamIds = (memberships || []).map(function (m) { return m.team_id; });
+      cloudState.knownTeamIds = new Set(teamIds);
+
+      const localTeamData = loadTeamData();
+      const localMatchStore = loadMatchStore();
+
+      if (teamIds.length > 0) {
+        const [teamsResult, playersResult, matchesResult] = await Promise.all([
+          client.from("teams").select("*").in("id", teamIds),
+          client.from("players").select("*").in("team_id", teamIds),
+          client.from("matches").select("*").in("team_id", teamIds)
+        ]);
+        if (teamsResult.error) throw teamsResult.error;
+        if (playersResult.error) throw playersResult.error;
+        if (matchesResult.error) throw matchesResult.error;
+
+        const teamRows = teamsResult.data || [];
+        const playerRows = playersResult.data || [];
+        const matchRows = matchesResult.data || [];
+
+        const cloudTeams = teamRows.map(function (row) {
+          const players = playerRows
+            .filter(function (p) { return p.team_id === row.id; })
+            .map(function (p) { return p.data; });
+          return { id: row.id, name: row.name, season: row.season, players: players };
+        });
+
+        const cloudTeamIdSet = new Set(teamIds);
+        const localOnlyTeams = localTeamData.teams.filter(function (team) {
+          return !cloudTeamIdSet.has(team.id);
+        });
+        const mergedTeams = localOnlyTeams.concat(cloudTeams);
+        const activeTeamId = mergedTeams.some(function (t) { return t.id === localTeamData.activeTeamId; })
+          ? localTeamData.activeTeamId
+          : (mergedTeams[0] ? mergedTeams[0].id : localTeamData.activeTeamId);
+
+        saveTeamData({ activeTeamId: activeTeamId, teams: mergedTeams }, { skipCloudSync: true });
+
+        const mergedMatchStore = Object.assign({}, localMatchStore);
+        teamIds.forEach(function (teamId) {
+          const teamMatches = matchRows.filter(function (m) { return m.team_id === teamId; }).map(function (m) { return m.data; });
+          const activeRow = matchRows.find(function (m) { return m.team_id === teamId && m.is_active; });
+          mergedMatchStore[teamId] = {
+            matches: teamMatches,
+            activeMatchId: activeRow ? activeRow.id : (teamMatches[0] ? teamMatches[0].id : null)
+          };
+        });
+        saveMatchStore(mergedMatchStore, { skipCloudSync: true });
+      }
+
+      refreshCurrentView();
+      renderCloudShareTeamOptions();
+      setCloudSyncStatus("✓ Gesynchroniseerd met de cloud.", false);
+
+      // Stuur eventuele lokale (nog niet gedeelde) teams alsnog naar de cloud.
+      scheduleCloudPush();
+    } catch (e) {
+      console.error("Cloud-synchronisatie (ophalen) mislukt:", e);
+      setCloudSyncStatus("⚠️ Kon geen verbinding maken met de cloud. Je werkt nu met de laatst bekende lokale data.", true);
+    }
+  }
+
+  /**
+   * Vult de team-kiezer in de "Team delen"-sectie met de lokale teams.
+   */
+  function renderCloudShareTeamOptions() {
+    const select = document.getElementById("cloud-share-team-select");
+    if (!select) {
+      return;
+    }
+    const teamData = loadTeamData();
+    const previousValue = select.value;
+    select.innerHTML = "";
+    teamData.teams.forEach(function (team) {
+      const option = document.createElement("option");
+      option.value = team.id;
+      option.textContent = team.name;
+      select.appendChild(option);
+    });
+    const hasPreviousValue = teamData.teams.some(function (team) { return team.id === previousValue; });
+    select.value = hasPreviousValue ? previousValue : teamData.activeTeamId;
+  }
+
+  function getSelectedCloudShareTeam() {
+    const select = document.getElementById("cloud-share-team-select");
+    const teamData = loadTeamData();
+    const teamId = select ? select.value : teamData.activeTeamId;
+    return teamData.teams.find(function (team) { return team.id === teamId; }) || null;
+  }
+
+  /**
+   * Deelt een team met een collega-trainer op basis van diens
+   * e-mailadres. Vereist dat die collega al minstens één keer heeft
+   * ingelogd/een account heeft aangemaakt in de app (anders is er nog
+   * geen gekoppelde gebruiker te vinden — zie find_user_id_by_email in
+   * supabase/schema.sql).
+   */
+  async function shareTeamWithTrainer(client, teamId, email) {
+    const statusEl = document.getElementById("cloud-share-status");
+    function setStatus(message, isError) {
+      if (!statusEl) {
+        return;
+      }
+      statusEl.textContent = message;
+      statusEl.classList.toggle("card__filename--error", !!isError);
+    }
+    setStatus("Bezig met delen…", false);
+    try {
+      const { data: userId, error: lookupError } = await client.rpc("find_user_id_by_email", { lookup_email: email });
+      if (lookupError) {
+        throw lookupError;
+      }
+      if (!userId) {
+        setStatus("⚠️ Geen account gevonden met dit e-mailadres. Vraag je collega eerst zelf in te loggen/een account aan te maken in de app.", true);
+        return;
+      }
+      const { error: insertError } = await client.rpc("add_team_member", {
+        p_team_id: teamId,
+        p_user_id: userId,
+        p_role: "trainer"
+      });
+      if (insertError) {
+        throw insertError;
+      }
+      setStatus("✓ Team gedeeld! Je collega ziet dit team zodra die inlogt of handmatig synchroniseert.", false);
+    } catch (e) {
+      console.error("Delen van team mislukt:", e);
+      setStatus("⚠️ Delen is niet gelukt: " + (e.message || "onbekende fout") + ".", true);
+    }
+  }
+
+  /**
+   * Initialiseert de cloud-login (Supabase Auth), het in-/uitloggen en
+   * het delen van teams met collega-trainers. Zolang er geen geldige
+   * Supabase-configuratie is ingevuld (zie supabase-config.js), blijft
+   * de app gewoon volledig lokaal werken zonder inlogscherm.
+   */
+  function initCloudSync() {
+    const authScreen = document.getElementById("auth-screen");
+
+    if (!isCloudConfigured()) {
+      if (authScreen) {
+        authScreen.hidden = true;
+      }
+      return;
+    }
+
+    const client = getSupabaseClient();
+    if (!client) {
+      if (authScreen) {
+        authScreen.hidden = true;
+      }
+      return;
+    }
+
+    const appTopbar = document.querySelector(".app-topbar");
+    const appMain = document.getElementById("main-content");
+    const bottomNav = document.getElementById("bottom-nav");
+
+    const authForm = document.getElementById("auth-form");
+    const authEmailInput = document.getElementById("auth-email");
+    const authPasswordInput = document.getElementById("auth-password");
+    const btnAuthSubmit = document.getElementById("btn-auth-submit");
+    const btnAuthToggleMode = document.getElementById("btn-auth-toggle-mode");
+    const authToggleHint = document.getElementById("auth-toggle-hint");
+    const authFormTitle = document.getElementById("auth-form-title");
+    const authStatus = document.getElementById("auth-status");
+    const topbarAccount = document.getElementById("topbar-account");
+    const topbarAccountEmail = document.getElementById("topbar-account-email");
+    const btnAuthLogout = document.getElementById("btn-auth-logout");
+    const btnCloudSyncNow = document.getElementById("btn-cloud-sync-now");
+    const btnCloudShare = document.getElementById("btn-cloud-share");
+    const cloudShareEmailInput = document.getElementById("cloud-share-email");
+
+    let mode = "signin";
+    let justSignedUp = false;
+
+    function setAuthStatus(message, isError) {
+      if (!authStatus) {
+        return;
+      }
+      authStatus.textContent = message;
+      authStatus.hidden = !message;
+      authStatus.classList.toggle("auth-card__status--error", !!isError);
+      authStatus.classList.toggle("auth-card__status--ok", !isError && !!message);
+    }
+
+    function setMode(newMode) {
+      mode = newMode;
+      if (authFormTitle) authFormTitle.textContent = mode === "signin" ? "Inloggen" : "Account aanmaken";
+      if (btnAuthSubmit) btnAuthSubmit.textContent = mode === "signin" ? "Inloggen" : "Account aanmaken";
+      if (authToggleHint) authToggleHint.textContent = mode === "signin" ? "Nog geen account?" : "Al een account?";
+      if (btnAuthToggleMode) btnAuthToggleMode.textContent = mode === "signin" ? "Registreren" : "Inloggen";
+      setAuthStatus("", false);
+    }
+
+    if (btnAuthToggleMode) {
+      btnAuthToggleMode.addEventListener("click", function () {
+        setMode(mode === "signin" ? "signup" : "signin");
+      });
+    }
+
+    function showAuthenticatedUI(session) {
+      if (authScreen) authScreen.hidden = true;
+      if (appTopbar) appTopbar.hidden = false;
+      if (appMain) appMain.hidden = false;
+      if (bottomNav) bottomNav.hidden = false;
+      if (topbarAccount) topbarAccount.hidden = false;
+      if (topbarAccountEmail) topbarAccountEmail.textContent = (session.user && session.user.email) || "";
+    }
+
+    function showLoginUI() {
+      if (authScreen) authScreen.hidden = false;
+      if (appTopbar) appTopbar.hidden = true;
+      if (appMain) appMain.hidden = true;
+      if (bottomNav) bottomNav.hidden = true;
+      if (topbarAccount) topbarAccount.hidden = true;
+    }
+
+    if (authForm) {
+      authForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const email = authEmailInput ? authEmailInput.value.trim() : "";
+        const password = authPasswordInput ? authPasswordInput.value : "";
+        if (!email || !password) {
+          return;
+        }
+        if (btnAuthSubmit) btnAuthSubmit.disabled = true;
+        setAuthStatus(mode === "signin" ? "Bezig met inloggen…" : "Bezig met account aanmaken…", false);
+
+        const isSignup = mode === "signup";
+        justSignedUp = isSignup;
+
+        const action = isSignup
+          ? client.auth.signUp({ email: email, password: password })
+          : client.auth.signInWithPassword({ email: email, password: password });
+
+        action.then(function (result) {
+          if (btnAuthSubmit) btnAuthSubmit.disabled = false;
+          if (result.error) {
+            justSignedUp = false;
+            setAuthStatus("⚠️ " + result.error.message, true);
+            return;
+          }
+          if (isSignup && !(result.data && result.data.session)) {
+            // "Confirm email" staat aan in Supabase: er is nog geen
+            // sessie, de trainer moet eerst de bevestigingsmail openen
+            // voordat inloggen lukt.
+            justSignedUp = false;
+            setMode("signin");
+            setAuthStatus("✓ Account aangemaakt. Check je e-mail om te bevestigen en log daarna in.", false);
+            return;
+          }
+          // Bij een direct beschikbare sessie (bv. "Confirm email" staat
+          // uit) toont onAuthStateChange hieronder eerst een
+          // succesmelding, met een korte vertraging voordat er wordt
+          // doorgeschakeld naar de app.
+        }).catch(function (e) {
+          if (btnAuthSubmit) btnAuthSubmit.disabled = false;
+          justSignedUp = false;
+          setAuthStatus("⚠️ Er ging iets mis: " + e.message, true);
+        });
+      });
+    }
+
+    if (btnAuthLogout) {
+      btnAuthLogout.addEventListener("click", function () {
+        client.auth.signOut();
+      });
+    }
+
+    if (btnCloudSyncNow) {
+      btnCloudSyncNow.addEventListener("click", function () {
+        pullCloudDataAndApply();
+      });
+    }
+
+    if (btnCloudShare) {
+      btnCloudShare.addEventListener("click", function () {
+        const team = getSelectedCloudShareTeam();
+        const email = cloudShareEmailInput ? cloudShareEmailInput.value.trim().toLowerCase() : "";
+        if (!team || !email) {
+          return;
+        }
+        shareTeamWithTrainer(client, team.id, email);
+      });
+    }
+
+    document.addEventListener("vtm:view-activated", function (event) {
+      if (event.detail && event.detail.view === "data") {
+        renderCloudShareTeamOptions();
+      }
+    });
+
+    window.addEventListener("online", function () {
+      if (cloudState.session) {
+        scheduleCloudPush();
+      }
+    });
+
+    client.auth.onAuthStateChange(function (event, session) {
+      if (session) {
+        cloudState.session = session;
+        if (justSignedUp && event === "SIGNED_IN") {
+          // Net geregistreerd én meteen een sessie gekregen ("Confirm
+          // email" staat uit): toon eerst een duidelijke succesmelding,
+          // en schakel pas daarna (met een korte vertraging) door naar
+          // de app, zodat de trainer de melding ook echt ziet.
+          justSignedUp = false;
+          setAuthStatus("✓ Account succesvol aangemaakt! Je wordt ingelogd…", false);
+          setTimeout(function () {
+            showAuthenticatedUI(session);
+            pullCloudDataAndApply();
+          }, 1500);
+          return;
+        }
+        showAuthenticatedUI(session);
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+          pullCloudDataAndApply();
+        }
+      } else {
+        cloudState.session = null;
+        justSignedUp = false;
+        showLoginUI();
+      }
+    });
+
+    renderCloudShareTeamOptions();
+  }
+
   /**
    * Registreert de Service Worker voor offline gebruik (PWA) en zorgt
    * ervoor dat updates (nieuwe CACHE_NAME-versie in sw.js) direct
@@ -3965,6 +4512,7 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    initCloudSync();
     initNavigation();
     initDashboard();
     initTeamManagement();

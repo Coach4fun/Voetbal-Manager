@@ -15,7 +15,7 @@
         app.js).
    ========================================================= */
 
-const CACHE_NAME = "vtm-cache-v20";
+const CACHE_NAME = "vtm-cache-v21";
 
 const APP_SHELL_FILES = [
   "./",
@@ -28,7 +28,16 @@ const APP_SHELL_FILES = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/icon-maskable-192.png",
-  "./icons/icon-maskable-512.png"
+  "./icons/icon-maskable-512.png",
+  "./supabase-config.js"
+];
+
+// Externe (cross-origin) bestanden: best-effort cachen voor offline
+// gebruik. Een mislukte download hiervan (bv. geen internet bij de
+// allereerste installatie, of de CDN tijdelijk onbereikbaar) mag de
+// installatie van de kern-app-shell hierboven nooit blokkeren.
+const OPTIONAL_EXTERNAL_FILES = [
+  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
 ];
 
 // Installatie: cache alle app-shell bestanden.
@@ -38,7 +47,7 @@ const APP_SHELL_FILES = [
 self.addEventListener("install", function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      return Promise.all(
+      const shellPromise = Promise.all(
         APP_SHELL_FILES.map(function (url) {
           const request = new Request(url, { cache: "reload" });
           return fetch(request).then(function (response) {
@@ -46,6 +55,19 @@ self.addEventListener("install", function (event) {
           });
         })
       );
+      const optionalPromise = Promise.all(
+        OPTIONAL_EXTERNAL_FILES.map(function (url) {
+          const request = new Request(url, { cache: "reload" });
+          return fetch(request)
+            .then(function (response) {
+              return cache.put(url, response);
+            })
+            .catch(function (error) {
+              console.warn("Optioneel bestand kon niet worden gecachet (niet fataal):", url, error);
+            });
+        })
+      );
+      return Promise.all([shellPromise, optionalPromise]);
     }).then(function () {
       return self.skipWaiting();
     })

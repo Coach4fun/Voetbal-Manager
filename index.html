@@ -22,10 +22,45 @@
        mobiele browser in-/uitklapt tijdens het scrollen door de spelerslijst. -->
   <div id="viewport-probe" aria-hidden="true"></div>
 
+  <!-- Cloud-login (Supabase). Wordt alleen getoond als er een geldige
+       Supabase-configuratie is ingevuld (zie supabase-config.js) en er
+       nog geen actieve sessie is. Zonder configuratie blijft de app
+       gewoon volledig lokaal werken, zoals voorheen. -->
+  <div id="auth-screen" class="auth-screen" hidden>
+    <div class="auth-card">
+      <span class="auth-card__logo" aria-hidden="true">⚽</span>
+      <h1 class="auth-card__title">VoetbalTeam Manager</h1>
+      <div class="card">
+        <h3 class="card__title" id="auth-form-title">Inloggen</h3>
+        <p class="card__text">Log in om je teams, wedstrijden en speelminuten te synchroniseren met de cloud en te delen met collega-trainers.</p>
+        <form id="auth-form">
+          <div class="field-row">
+            <label class="field-label" for="auth-email">E-mailadres</label>
+            <input class="field-input" type="email" id="auth-email" autocomplete="email" required>
+          </div>
+          <div class="field-row">
+            <label class="field-label" for="auth-password">Wachtwoord</label>
+            <input class="field-input" type="password" id="auth-password" autocomplete="current-password" minlength="6" required>
+          </div>
+          <button type="submit" class="btn btn--primary btn--block" id="btn-auth-submit">Inloggen</button>
+        </form>
+        <p class="auth-card__toggle">
+          <span id="auth-toggle-hint">Nog geen account?</span>
+          <button type="button" id="btn-auth-toggle-mode">Registreren</button>
+        </p>
+        <p class="auth-card__status" id="auth-status" hidden></p>
+      </div>
+    </div>
+  </div>
+
   <!-- Topbar -->
   <header class="app-topbar">
     <span class="app-topbar__logo" aria-hidden="true">⚽</span>
     <h1 class="app-topbar__title">VoetbalTeam Manager</h1>
+    <span class="app-topbar__account" id="topbar-account" hidden>
+      <span class="app-topbar__account-email" id="topbar-account-email"></span>
+      <button class="app-topbar__action" id="btn-auth-logout" aria-label="Uitloggen" title="Uitloggen">🚪</button>
+    </span>
     <button class="app-topbar__action" id="btn-notifications" aria-label="Meldingen">🔔</button>
   </header>
 
@@ -374,6 +409,23 @@
     <section id="view-data" class="view" data-view="data">
       <h2 class="view__title">Data Import/Export</h2>
 
+      <div class="card" id="cloud-sync-card">
+        <h3 class="card__title">☁️ Cloud-synchronisatie</h3>
+        <p class="card__text">Zolang je bent ingelogd, worden je teams, wedstrijden, opstellingen en speelminuten automatisch gesynchroniseerd met de cloud - ook op andere apparaten. Deel een team met een collega-trainer door hieronder diens e-mailadres in te vullen (die collega moet daarvoor al minstens één keer zelf hebben ingelogd/een account aangemaakt).</p>
+        <button class="btn btn--secondary btn--block" id="btn-cloud-sync-now">Nu handmatig synchroniseren</button>
+        <p class="card__filename" id="cloud-sync-status"></p>
+        <div class="field-row">
+          <label class="field-label" for="cloud-share-team-select">Team delen</label>
+          <select class="field-select" id="cloud-share-team-select"></select>
+        </div>
+        <div class="field-row">
+          <label class="field-label" for="cloud-share-email">E-mailadres collega-trainer</label>
+          <input class="field-input" type="email" id="cloud-share-email" placeholder="naam@voorbeeld.nl">
+        </div>
+        <button class="btn btn--primary btn--block" id="btn-cloud-share">Team delen met collega</button>
+        <p class="card__filename" id="cloud-share-status"></p>
+      </div>
+
       <div class="card">
         <h3 class="card__title">📤 Exporteren</h3>
         <p class="card__text">Kies een team en deel óf alle data van dat team in één keer (spelers, alle wedstrijden, opstellingen en speelminuten - werkt bij import het Dashboard van een collega-trainer direct volledig bij), óf kies een specifieke wedstrijd om alleen die te delen (JSON of leesbare CSV/Excel), óf een teamoverzicht met alle spelers, speelminuten en basisplekken (JSON of CSV/Excel). De import herkent zelf om welk formaat en type het gaat.</p>
@@ -439,6 +491,8 @@
     </button>
   </nav>
 
-  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="supabase-config.js" defer></script>
+  <script src="app.js" defer></script>
 </body>
 </html>
