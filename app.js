@@ -74,6 +74,14 @@
 
   const TEAM_STORAGE_KEY = "vtm:teamData";
 
+  // Onthoudt voor welke cloud-account de nog-niet-gesynchroniseerde
+  // lokale teams op dit apparaat bedoeld zijn (zie pullCloudDataAndApply
+  // in de Cloud Sync-module hieronder). Dit voorkomt dat een collega die
+  // op hetzelfde apparaat/dezelfde browser inlogt de nog-niet-gedeelde
+  // teams van een andere trainer te zien krijgt of per ongeluk naar
+  // zijn eigen account pusht.
+  const LOCAL_DATA_OWNER_KEY = "vtm:localDataOwnerUserId";
+
   const STATUS_LABELS = {
     fit: "Fit",
     geblesseerd: "Geblesseerd",
@@ -3976,6 +3984,20 @@
       const localTeamData = loadTeamData();
       const localMatchStore = loadMatchStore();
 
+      // Nog-niet-gesynchroniseerde lokale teams worden alleen aan déze
+      // trainer toegekend (getoond én meegepusht) als dit apparaat nog
+      // niet eerder aan een ándere cloud-account gekoppeld was. Zo start
+      // een nieuw account leeg (op gedeelde teams na), in plaats van de
+      // restjes van een vorige trainer op hetzelfde apparaat over te
+      // nemen.
+      const previousLocalOwner = window.localStorage.getItem(LOCAL_DATA_OWNER_KEY);
+      const localDataBelongsToMe = !previousLocalOwner || previousLocalOwner === userId;
+      window.localStorage.setItem(LOCAL_DATA_OWNER_KEY, userId);
+
+      const cloudTeamIdSet = new Set(teamIds);
+      let cloudTeams = [];
+      const mergedMatchStore = {};
+
       if (teamIds.length > 0) {
         const [teamsResult, playersResult, matchesResult] = await Promise.all([
           client.from("teams").select("*").in("id", teamIds),
@@ -3990,25 +4012,13 @@
         const playerRows = playersResult.data || [];
         const matchRows = matchesResult.data || [];
 
-        const cloudTeams = teamRows.map(function (row) {
+        cloudTeams = teamRows.map(function (row) {
           const players = playerRows
             .filter(function (p) { return p.team_id === row.id; })
             .map(function (p) { return p.data; });
           return { id: row.id, name: row.name, season: row.season, players: players };
         });
 
-        const cloudTeamIdSet = new Set(teamIds);
-        const localOnlyTeams = localTeamData.teams.filter(function (team) {
-          return !cloudTeamIdSet.has(team.id);
-        });
-        const mergedTeams = localOnlyTeams.concat(cloudTeams);
-        const activeTeamId = mergedTeams.some(function (t) { return t.id === localTeamData.activeTeamId; })
-          ? localTeamData.activeTeamId
-          : (mergedTeams[0] ? mergedTeams[0].id : localTeamData.activeTeamId);
-
-        saveTeamData({ activeTeamId: activeTeamId, teams: mergedTeams }, { skipCloudSync: true });
-
-        const mergedMatchStore = Object.assign({}, localMatchStore);
         teamIds.forEach(function (teamId) {
           const teamMatches = matchRows.filter(function (m) { return m.team_id === teamId; }).map(function (m) { return m.data; });
           const activeRow = matchRows.find(function (m) { return m.team_id === teamId && m.is_active; });
@@ -4017,8 +4027,26 @@
             activeMatchId: activeRow ? activeRow.id : (teamMatches[0] ? teamMatches[0].id : null)
           };
         });
-        saveMatchStore(mergedMatchStore, { skipCloudSync: true });
       }
+
+      const localOnlyTeams = localDataBelongsToMe
+        ? localTeamData.teams.filter(function (team) { return !cloudTeamIdSet.has(team.id); })
+        : [];
+      if (localDataBelongsToMe) {
+        Object.keys(localMatchStore).forEach(function (teamId) {
+          if (!cloudTeamIdSet.has(teamId) && !Object.prototype.hasOwnProperty.call(mergedMatchStore, teamId)) {
+            mergedMatchStore[teamId] = localMatchStore[teamId];
+          }
+        });
+      }
+
+      const mergedTeams = localOnlyTeams.concat(cloudTeams);
+      const activeTeamId = mergedTeams.some(function (t) { return t.id === localTeamData.activeTeamId; })
+        ? localTeamData.activeTeamId
+        : (mergedTeams[0] ? mergedTeams[0].id : null);
+
+      saveTeamData({ activeTeamId: activeTeamId, teams: mergedTeams }, { skipCloudSync: true });
+      saveMatchStore(mergedMatchStore, { skipCloudSync: true });
 
       refreshCurrentView();
       renderCloudShareTeamOptions();
@@ -4225,6 +4253,11 @@
         if (!email || !password) {
           return;
         }
+        // Wachtwoord meteen uit het veld wissen (het is al opgeslagen in
+        // de "password"-variabele hierboven): zo blijft er nooit een
+        // ingevuld wachtwoord zichtbaar/aanwezig als de trainer later
+        // weer uitlogt en op het inlogscherm terechtkomt.
+        if (authPasswordInput) authPasswordInput.value = "";
         if (btnAuthSubmit) btnAuthSubmit.disabled = true;
         setAuthStatus(mode === "signin" ? "Bezig met inloggen…" : "Bezig met account aanmaken…", false);
 
