@@ -2104,6 +2104,10 @@
       return; // Live Tracker-view niet (meer) aanwezig in de DOM
     }
 
+    // Maximale wedstrijdduur: bij het bereiken hiervan stopt de timer
+    // automatisch (ongeacht de ingestelde wedstrijdduur, die korter kan zijn).
+    const MAX_MATCH_SECONDS = 150 * 60;
+
     let teamDataRef = null;
     let currentTeam = null;
     let matchStore = null;
@@ -2133,6 +2137,7 @@
         currentMatch.live = {
           elapsedSeconds: 0,
           running: false,
+          startedAt: null,
           positions: JSON.parse(JSON.stringify(baseBlock.positions || {})),
           referencePositions: JSON.parse(JSON.stringify(baseBlock.positions || {})),
           // Bewaart wie bij de aftrap in de basisopstelling stond, zodat het
@@ -2178,6 +2183,16 @@
       }
       if (!currentMatch.live.manualColors) {
         currentMatch.live.manualColors = {};
+        persistMatchStore();
+      }
+      // Migratie: bestaande wedstrijden kennen nog geen wandklok-anker voor
+      // de timer. Reconstrueer dit vanuit de al opgeslagen elapsedSeconds,
+      // zodat de timer na deze update meteen op wandklok-tijd overschakelt
+      // (zie startTimer/tick hieronder).
+      if (typeof currentMatch.live.startedAt !== "number") {
+        currentMatch.live.startedAt = currentMatch.live.running
+          ? Date.now() - currentMatch.live.elapsedSeconds * 1000
+          : null;
         persistMatchStore();
       }
     }
@@ -2295,6 +2310,17 @@
       if (tickIntervalId) {
         window.clearInterval(tickIntervalId);
         tickIntervalId = null;
+      }
+    }
+
+    /**
+     * Herijkt het wandklok-anker (startedAt) op de huidige elapsedSeconds,
+     * zodat handmatige +1'/-1'-aanpassingen tijdens het lopen van de timer
+     * niet meteen weer overschreven worden door de eerstvolgende tick.
+     */
+    function resyncStartedAt() {
+      if (currentMatch.live.running) {
+        currentMatch.live.startedAt = Date.now() - currentMatch.live.elapsedSeconds * 1000;
       }
     }
 
@@ -2906,8 +2932,30 @@
 
     // --- Timer ---
 
+    /**
+     * Berekent elapsedSeconds op basis van de wandklok (Date.now() minus het
+     * moment waarop de timer zou zijn gestart bij 00:00) in plaats van door
+     * simpelweg elke seconde 1 op te tellen. Zo blijft de wedstrijdklok
+     * correct doorlopen ook als de browser/telefoon de site op de
+     * achtergrond zet (scherm uit, andere app) waardoor setInterval-ticks
+     * gemist of vertraagd worden: zodra er weer een tick (of het opnieuw
+     * openen van de Live-module) plaatsvindt, wordt de klok in één keer
+     * bijgewerkt naar de werkelijk verstreken tijd, in plaats van terug te
+     * springen naar de laatst getelde seconde.
+     */
+    function syncElapsedFromWallClock() {
+      if (typeof currentMatch.live.startedAt !== "number") {
+        return false;
+      }
+      const rawElapsed = Math.floor((Date.now() - currentMatch.live.startedAt) / 1000);
+      const clamped = Math.min(MAX_MATCH_SECONDS, Math.max(0, rawElapsed));
+      const reachedMax = clamped >= MAX_MATCH_SECONDS;
+      currentMatch.live.elapsedSeconds = clamped;
+      return reachedMax;
+    }
+
     function tick() {
-      currentMatch.live.elapsedSeconds += 1;
+      const reachedMax = syncElapsedFromWallClock();
       settleMinutes();
       renderTimer();
       renderPitch();
@@ -2915,11 +2963,21 @@
 
       checkUpcomingBlockAlert();
       persistMatchStore();
+
+      if (reachedMax && currentMatch.live.running) {
+        pauseTimer();
+        window.alert("Maximale wedstrijdduur van 150 minuten bereikt: de timer is automatisch gestopt.");
+      }
     }
 
     function startTimer() {
       if (tickIntervalId) {
         return;
+      }
+      if (typeof currentMatch.live.startedAt !== "number") {
+        // Nieuwe start, of hervatten na een pauze: zet het wandklok-anker
+        // zodat vanaf hier verder geteld wordt vanaf de huidige stand.
+        currentMatch.live.startedAt = Date.now() - currentMatch.live.elapsedSeconds * 1000;
       }
       currentMatch.live.running = true;
       if (currentMatch.ended) {
@@ -2931,13 +2989,25 @@
       persistMatchStore();
       renderTimer();
       tickIntervalId = window.setInterval(tick, 1000);
+      // Direct bijwerken (niet wachten op de eerste interval-tick) zodat een
+      // eventueel verstreken tijd tijdens het op de achtergrond staan meteen
+      // zichtbaar wordt zodra de trainer terugkeert naar de Live-module.
+      tick();
     }
 
     function pauseTimer() {
+      // Nog één keer bijwerken op basis van de wandklok vlak vóór het
+      // pauzeren, zodat er geen (fractie van een) seconde speeltijd verloren
+      // gaat tussen de laatste tick en het moment van pauzeren.
+      syncElapsedFromWallClock();
+      settleMinutes();
       clearTickInterval();
       currentMatch.live.running = false;
+      currentMatch.live.startedAt = null;
       persistMatchStore();
       renderTimer();
+      renderPitch();
+      renderBench();
     }
 
     btnToggle.addEventListener("click", function () {
@@ -2965,6 +3035,7 @@
 
     btnMinus.addEventListener("click", function () {
       currentMatch.live.elapsedSeconds = Math.max(0, currentMatch.live.elapsedSeconds - 60);
+      resyncStartedAt();
       settleMinutes();
       renderPitch();
       renderBench();
@@ -2973,7 +3044,8 @@
     });
 
     btnPlus.addEventListener("click", function () {
-      currentMatch.live.elapsedSeconds += 60;
+      currentMatch.live.elapsedSeconds = Math.min(MAX_MATCH_SECONDS, currentMatch.live.elapsedSeconds + 60);
+      resyncStartedAt();
       settleMinutes();
       renderPitch();
       renderBench();
