@@ -2954,7 +2954,21 @@
       return reachedMax;
     }
 
-    function tick() {
+    /**
+     * Werkt de timer onmiddellijk bij op basis van de wandklok en ververst
+     * het scherm. Wordt zowel door de reguliere seconde-tik (tick, hieronder)
+     * als door de visibilitychange/focus/pageshow-handlers (verderop in deze
+     * functie) aangeroepen: mobiele besturingssystemen kunnen setInterval-
+     * ticks voor onbepaalde tijd uitstellen of zelfs volledig stilleggen
+     * zolang het scherm vergrendeld is of de trainer in een andere app zit,
+     * dus zonder deze expliciete "bij terugkeer meteen bijwerken"-aanroep
+     * zou de klok pas (veel) later weer kloppen dan het moment waarop de
+     * trainer daadwerkelijk terugkeert naar de Live-module.
+     */
+    function resyncLiveTimerNow() {
+      if (!currentMatch || !currentMatch.live || !currentMatch.live.running) {
+        return;
+      }
       const reachedMax = syncElapsedFromWallClock();
       settleMinutes();
       renderTimer();
@@ -2964,10 +2978,14 @@
       checkUpcomingBlockAlert();
       persistMatchStore();
 
-      if (reachedMax && currentMatch.live.running) {
+      if (reachedMax) {
         pauseTimer();
         window.alert("Maximale wedstrijdduur van 150 minuten bereikt: de timer is automatisch gestopt.");
       }
+    }
+
+    function tick() {
+      resyncLiveTimerNow();
     }
 
     function startTimer() {
@@ -3166,6 +3184,21 @@
         clearTickInterval(); // pauzeer de klok-interval als de trainer wegnavigeert
       }
     });
+
+    // De pagina/PWA kan op de achtergrond (scherm vergrendeld, andere app
+    // geopend) door het besturingssysteem/de browser volledig of
+    // grotendeels bevroren worden, waardoor setInterval-ticks uitblijven.
+    // Zodra het scherm weer actief wordt, grijpen we dit meteen aan om de
+    // klok direct met de wandklok te synchroniseren, in plaats van te
+    // wachten tot de (mogelijk nog getemporiseerde) timer-interval
+    // vanzelf weer gaat tikken.
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) {
+        resyncLiveTimerNow();
+      }
+    });
+    window.addEventListener("focus", resyncLiveTimerNow);
+    window.addEventListener("pageshow", resyncLiveTimerNow);
 
     refreshForActiveTeam();
   }
