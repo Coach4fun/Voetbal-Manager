@@ -49,6 +49,13 @@
         const target = btn.getAttribute("data-target");
         if (target) {
           activateView(target);
+          if (target === "live") {
+            // Haal bij het openen van de Live-module eerst de laatste
+            // cloud-stand op: zo ziet een trainer meteen of een collega
+            // de wedstrijd inmiddels al (elders) gestart heeft, in plaats
+            // van pas na een eerstvolgende automatische synchronisatie.
+            pullCloudDataIfLoggedIn();
+          }
         }
       });
     });
@@ -3028,12 +3035,24 @@
       renderBench();
     }
 
-    btnToggle.addEventListener("click", function () {
+    btnToggle.addEventListener("click", async function () {
       if (currentMatch.live.running) {
         pauseTimer();
-      } else {
-        startTimer();
+        return;
       }
+      // Vóór het (her)starten: eerst proberen de laatste cloud-stand op
+      // te halen, voor het geval een andere trainer deze wedstrijd
+      // inmiddels al (op een ander apparaat) heeft gestart. Zonder dit
+      // zouden beide trainers ieder hun eigen wandklok-anker zetten,
+      // waardoor de geteide minuten uiteen gaan lopen en er bij het
+      // stoppen een conflict tussen beide standen ontstaat.
+      await pullCloudDataIfLoggedIn();
+      if (currentMatch.live.running) {
+        // Een collega-trainer had de wedstrijd al gestart; de hierboven
+        // opgehaalde cloud-stand is zojuist al overgenomen (zie loadMatch).
+        return;
+      }
+      startTimer();
     });
 
     btnReset.addEventListener("click", function () {
@@ -4206,6 +4225,22 @@
       console.error("Cloud-synchronisatie (ophalen) mislukt:", e);
       setCloudSyncStatus("⚠️ Kon geen verbinding maken met de cloud. Je werkt nu met de laatst bekende lokale data.", true);
     }
+  }
+
+  /**
+   * Haalt - alleen als er een ingelogde cloud-sessie is - de laatste
+   * cloud-data op en past deze toe. Wordt gebruikt op momenten waarop
+   * het belangrijk is dat de trainer meteen de meest actuele stand ziet
+   * (zoals het openen van de Live-module of vlak vóór het starten van
+   * de timer), in plaats van te wachten op de eerstvolgende automatische
+   * synchronisatie. Geeft altijd een Promise terug, zodat de aanroeper
+   * (desgewenst) kan wachten tot het ophalen klaar is.
+   */
+  function pullCloudDataIfLoggedIn() {
+    if (cloudState.session) {
+      return pullCloudDataAndApply();
+    }
+    return Promise.resolve();
   }
 
   /**
