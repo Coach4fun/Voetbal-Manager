@@ -2121,8 +2121,14 @@
     let currentBucket = null;
     let currentMatch = null;
     let tickIntervalId = null;
+    let cloudPollIntervalId = null;
     let alertedBlockIds = {};
     let pendingSuggestionBlock = null;
+    // Hoe vaak (tijdens een lopende timer) stilletjes gecontroleerd wordt of
+    // een andere trainer de wedstrijd intussen elders heeft gepauzeerd: dit
+    // zorgt dat beide trainers ook tussentijds (niet pas bij het heropenen
+    // van de Live-module) dezelfde stand en eindstand zien.
+    const CLOUD_POLL_INTERVAL_MS = 10000;
 
     function persistMatchStore() {
       saveMatchStore(matchStore);
@@ -2317,6 +2323,10 @@
       if (tickIntervalId) {
         window.clearInterval(tickIntervalId);
         tickIntervalId = null;
+      }
+      if (cloudPollIntervalId) {
+        window.clearInterval(cloudPollIntervalId);
+        cloudPollIntervalId = null;
       }
     }
 
@@ -3014,6 +3024,13 @@
       persistMatchStore();
       renderTimer();
       tickIntervalId = window.setInterval(tick, 1000);
+      // Stilletjes periodiek controleren of een andere trainer deze
+      // wedstrijd intussen elders heeft gepauzeerd (zie de bescherming in
+      // pullCloudDataAndApply hierboven), zodat dat niet pas zichtbaar wordt
+      // als deze trainer toevallig wegnavigeert en terugkomt.
+      cloudPollIntervalId = window.setInterval(function () {
+        pullCloudDataIfLoggedIn({ silent: true });
+      }, CLOUD_POLL_INTERVAL_MS);
       // Direct bijwerken (niet wachten op de eerste interval-tick) zodat een
       // eventueel verstreken tijd tijdens het op de achtergrond staan meteen
       // zichtbaar wordt zodra de trainer terugkeert naar de Live-module.
@@ -3033,6 +3050,12 @@
       renderTimer();
       renderPitch();
       renderBench();
+      // Stuur de pauze meteen (niet gedebouncet) naar de cloud: een andere
+      // trainer die deze wedstrijd nog open heeft staan, moet zo snel
+      // mogelijk kunnen merken dat 'm gestopt is (zie de periodieke
+      // achtergrond-poll hierboven), in plaats van tot ~1-10s later te
+      // wachten op de normale gedebouncete push.
+      pushLocalStateToCloud();
     }
 
     btnToggle.addEventListener("click", async function () {
@@ -4107,12 +4130,15 @@
    * offline aangemaakt) blijven staan, en worden hierna automatisch
    * alsnog geüpload naar Supabase.
    */
-  async function pullCloudDataAndApply() {
+  async function pullCloudDataAndApply(options) {
+    const silent = !!(options && options.silent);
     const client = getSupabaseClient();
     if (!client || !cloudState.session) {
       return;
     }
-    setCloudSyncStatus("Bezig met ophalen van cloud-data…", false);
+    if (!silent) {
+      setCloudSyncStatus("Bezig met ophalen van cloud-data…", false);
+    }
     try {
       const userId = cloudState.session.user.id;
       const { data: memberships, error: memberError } = await client
@@ -4165,27 +4191,56 @@
         });
 
         teamIds.forEach(function (teamId) {
-          const teamMatches = matchRows.filter(function (m) { return m.team_id === teamId; }).map(function (m) { return m.data; });
+          const teamMatchRows = matchRows.filter(function (m) { return m.team_id === teamId; });
+          const teamMatches = teamMatchRows.map(function (m) { return m.data; });
+          const remoteUpdatedAtById = {};
+          teamMatchRows.forEach(function (m) {
+            remoteUpdatedAtById[m.id] = m.updated_at ? new Date(m.updated_at).getTime() : 0;
+          });
 
           // Een wedstrijd waarvan de live-timer op dít apparaat op dit
-          // moment nog loopt, mag nooit worden teruggezet door een
+          // moment nog loopt, mag niet zomaar worden teruggezet door een
           // (mogelijk nog verouderde, want gedebouncete) cloud-versie: de
-          // lokale stand is hier altijd de meest actuele. Zonder deze
-          // bescherming zou terugkeren naar de app ná het wegnavigeren
-          // (andere tab/app) - wat een cloud-ophaalbeurt kan triggeren -
-          // de nog lopende klok kunnen terugzetten naar de laatst
-          // geüploade (oudere) stand.
+          // lokale stand is dan meestal de meest actuele. Zónder uitzondering
+          // zou dat echter ook een bewuste pauze door een ándere trainer
+          // overschrijven: als de cloud een wedstrijd die hier nog lokaal
+          // "loopt" juist als gepauzeerd kent, betekent dat dat iemand anders
+          // 'm inmiddels heeft gestopt - en die pauze moet leidend zijn,
+          // zodat beide trainers op dezelfde eindstand uitkomen.
           const localTeamMatches = (localMatchStore[teamId] && localMatchStore[teamId].matches) || [];
           localTeamMatches.forEach(function (localMatch) {
             if (!localMatch.live || !localMatch.live.running) {
               return;
             }
             const idx = teamMatches.findIndex(function (m) { return m.id === localMatch.id; });
-            if (idx !== -1) {
-              teamMatches[idx] = localMatch;
-            } else {
+            if (idx === -1) {
+              // Nog niet eerder naar de cloud gepusht: er kan dus ook niemand
+              // anders zijn die 'm gepauzeerd heeft - lokaal blijft leidend.
               teamMatches.push(localMatch);
+              return;
             }
+            const remoteMatch = teamMatches[idx];
+            const remoteSaysStillRunning = !!(remoteMatch.live && remoteMatch.live.running);
+            if (remoteSaysStillRunning) {
+              teamMatches[idx] = localMatch;
+              return;
+            }
+            // De cloud zegt "gepauzeerd", maar dat kan twee dingen betekenen:
+            // (a) een ándere trainer heeft 'm écht gepauzeerd (moet leidend
+            // zijn), of (b) dit is gewoon nog de oude cloud-rij van vóórdat
+            // dit apparaat zélf begon met lopen, en onze eigen (gedebouncete)
+            // push is simpelweg nog niet aangekomen (geen echt conflict).
+            // Dat onderscheid maken we aan de hand van de database-kolom
+            // "updated_at": alleen als de cloud-rij ná ons eigen wandklok-
+            // anker (startedAt) is bijgewerkt, is de pauze daadwerkelijk van
+            // ná onze eigen start en dus een genuine, nieuwere gebeurtenis.
+            const remoteUpdatedAt = remoteUpdatedAtById[localMatch.id] || 0;
+            const localStartedAt = typeof localMatch.live.startedAt === "number" ? localMatch.live.startedAt : 0;
+            if (remoteUpdatedAt <= localStartedAt) {
+              teamMatches[idx] = localMatch;
+            }
+            // Anders: de cloud-pauze is echt recenter dan onze eigen start,
+            // dus laten we de cloud-versie (gepauzeerd) staan.
           });
 
           const activeRow = matchRows.find(function (m) { return m.team_id === teamId && m.is_active; });
@@ -4217,13 +4272,17 @@
 
       refreshCurrentView();
       renderCloudShareTeamOptions();
-      setCloudSyncStatus("✓ Gesynchroniseerd met de cloud.", false);
+      if (!silent) {
+        setCloudSyncStatus("✓ Gesynchroniseerd met de cloud.", false);
+      }
 
       // Stuur eventuele lokale (nog niet gedeelde) teams alsnog naar de cloud.
       scheduleCloudPush();
     } catch (e) {
       console.error("Cloud-synchronisatie (ophalen) mislukt:", e);
-      setCloudSyncStatus("⚠️ Kon geen verbinding maken met de cloud. Je werkt nu met de laatst bekende lokale data.", true);
+      if (!silent) {
+        setCloudSyncStatus("⚠️ Kon geen verbinding maken met de cloud. Je werkt nu met de laatst bekende lokale data.", true);
+      }
     }
   }
 
@@ -4234,11 +4293,13 @@
    * (zoals het openen van de Live-module of vlak vóór het starten van
    * de timer), in plaats van te wachten op de eerstvolgende automatische
    * synchronisatie. Geeft altijd een Promise terug, zodat de aanroeper
-   * (desgewenst) kan wachten tot het ophalen klaar is.
+   * (desgewenst) kan wachten tot het ophalen klaar is. Geef { silent: true }
+   * mee voor stille achtergrond-polls (bv. tijdens een lopende timer), zodat
+   * de status-tekst niet steeds staat te knipperen.
    */
-  function pullCloudDataIfLoggedIn() {
+  function pullCloudDataIfLoggedIn(options) {
     if (cloudState.session) {
-      return pullCloudDataAndApply();
+      return pullCloudDataAndApply(options);
     }
     return Promise.resolve();
   }
