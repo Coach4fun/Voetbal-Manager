@@ -3899,6 +3899,7 @@
     session: null,
     knownTeamIds: new Set(),
     pushTimer: null,
+    pushFirstScheduledAt: null,
     pushInFlight: false,
     pushAgainAfter: false
   };
@@ -3960,9 +3961,20 @@
     el.classList.toggle("card__filename--error", !!isError);
   }
 
+  // Normale debounce-vertraging ná de laatste wijziging, plus een
+  // maximale wachttijd die altijd een keer tot een push dwingt. Zonder
+  // die maximale wachttijd zou een continu lopende Live-timer (die elke
+  // seconde een wijziging triggert via persistMatchStore) de debounce-
+  // timer eindeloos resetten, waardoor er tíjdens een lopende wedstrijd
+  // nooit écht een push naar de cloud plaatsvindt - met als gevolg dat de
+  // cloud-kopie van die wedstrijd blijft steken op een oude (bv. nog niet
+  // gestarte, 0 minuten) stand totdat de trainer weer pauzeert.
+  const CLOUD_PUSH_DEBOUNCE_MS = 1200;
+  const CLOUD_PUSH_MAX_WAIT_MS = 10000;
+
   /**
-   * Plant (gedebouncet, 1.2s na de laatste wijziging) het versturen van
-   * de volledige lokale stand naar Supabase. Draait alleen als er een
+   * Plant (gedebouncet, met een maximale wachttijd) het versturen van de
+   * volledige lokale stand naar Supabase. Draait alleen als er een
    * actieve sessie is; anders gebeurt er niets (de data blijft gewoon
    * lokaal staan en wordt bij de volgende login of het eerstvolgende
    * "online"-moment alsnog verstuurd).
@@ -3971,13 +3983,22 @@
     if (!cloudState.session) {
       return;
     }
+    const now = Date.now();
+    if (!cloudState.pushFirstScheduledAt) {
+      cloudState.pushFirstScheduledAt = now;
+    }
     if (cloudState.pushTimer) {
       clearTimeout(cloudState.pushTimer);
     }
+    const elapsedSinceFirstChange = now - cloudState.pushFirstScheduledAt;
+    const delay = elapsedSinceFirstChange >= CLOUD_PUSH_MAX_WAIT_MS
+      ? 0
+      : Math.min(CLOUD_PUSH_DEBOUNCE_MS, CLOUD_PUSH_MAX_WAIT_MS - elapsedSinceFirstChange);
     cloudState.pushTimer = setTimeout(function () {
       cloudState.pushTimer = null;
+      cloudState.pushFirstScheduledAt = null;
       pushLocalStateToCloud();
-    }, 1200);
+    }, delay);
   }
 
   async function pushLocalStateToCloud() {
@@ -4126,6 +4147,28 @@
 
         teamIds.forEach(function (teamId) {
           const teamMatches = matchRows.filter(function (m) { return m.team_id === teamId; }).map(function (m) { return m.data; });
+
+          // Een wedstrijd waarvan de live-timer op dít apparaat op dit
+          // moment nog loopt, mag nooit worden teruggezet door een
+          // (mogelijk nog verouderde, want gedebouncete) cloud-versie: de
+          // lokale stand is hier altijd de meest actuele. Zonder deze
+          // bescherming zou terugkeren naar de app ná het wegnavigeren
+          // (andere tab/app) - wat een cloud-ophaalbeurt kan triggeren -
+          // de nog lopende klok kunnen terugzetten naar de laatst
+          // geüploade (oudere) stand.
+          const localTeamMatches = (localMatchStore[teamId] && localMatchStore[teamId].matches) || [];
+          localTeamMatches.forEach(function (localMatch) {
+            if (!localMatch.live || !localMatch.live.running) {
+              return;
+            }
+            const idx = teamMatches.findIndex(function (m) { return m.id === localMatch.id; });
+            if (idx !== -1) {
+              teamMatches[idx] = localMatch;
+            } else {
+              teamMatches.push(localMatch);
+            }
+          });
+
           const activeRow = matchRows.find(function (m) { return m.team_id === teamId && m.is_active; });
           mergedMatchStore[teamId] = {
             matches: teamMatches,
